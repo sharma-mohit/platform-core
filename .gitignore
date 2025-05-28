@@ -1,0 +1,103 @@
+# --------------------
+# General
+# --------------------
+.DS_Store
+Thumbs.db
+*.log
+*.bak
+*.tmp
+*.swp
+*.swo
+*.out
+
+# --------------------
+# Terraform
+# --------------------
+*.tfstate
+*.tfstate.*
+*.backup
+.terraform/
+crash.log
+
+# --------------------
+# Kubernetes / Helm
+# --------------------
+*.kubeconfig
+kubeconfig.yaml
+values.override.yaml
+values.dev.yaml
+values.stg.yaml
+values.prd.yaml
+charts/*.tgz
+
+# --------------------
+# GitOps / CI
+# --------------------
+.env
+.env.*
+*.auto.tfvars
+*.auto.tfvars.json
+
+# --------------------
+# Cursor IDE Rules
+# --------------------
+cursor-rules.md
+cursor-rules.json
+cursor-rules.yaml
+cursor-config.*
+.cursor/
+
+# --------------------
+# VSCode / IDEs
+# --------------------
+.vscode/
+.idea/
+*.code-workspace
+
+# --------------------
+# Secrets / Security
+# --------------------
+secrets.*
+*.enc.yaml
+*.sealedsecret.yaml
+*.sops.yaml
+
+# --------------------
+# Python
+# --------------------
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.pyd
+*.pyo
+.Python
+.mypy_cache/
+.pytest_cache/
+.coverage
+.tox/
+venv/
+env/
+.venv/
+.ipynb_checkpoints/
+pip-wheel-metadata/
+site/
+
+# --------------------
+# Archives / Downloads
+# --------------------
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+
+# --------------------
+# Misc
+# --------------------
+tmp/
+cache/
+node_modules/
+coverage/
