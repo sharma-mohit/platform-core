@@ -1,0 +1,236 @@
+# Phase 2: FluxCD GitOps - Architecture
+
+This document outlines the architecture for managing Kubernetes configurations and deployments using FluxCD with a GitOps approach for the AI Platform.
+
+## Table of Contents
+
+- [GitOps Principles with FluxCD](#gitops-principles-with-fluxcd)
+- [Monorepo Strategy](#monorepo-strategy)
+  - [Rationale](#rationale)
+  - [Repository Access (SSH Authentication)](#repository-access-ssh-authentication)
+- [`flux-config/` Directory Structure](#flux-config-directory-structure)
+  - [Top-Level Files](#top-level-files)
+  - [`bases/` Directory](#bases-directory)
+  - [`clusters/` Directory](#clusters-directory)
+    - [`clusters/<cluster-name>/flux-system/`](#clusterscluster-nameflux-system)
+    - [`clusters/<cluster-name>/infrastructure/`](#clusterscluster-nameinfrastructure)
+    - [`clusters/<cluster-name>/apps/`](#clusterscluster-nameapps)
+- [Kustomize: Base and Overlays Pattern](#kustomize-base-and-overlays-pattern)
+  - [Base Configurations](#base-configurations)
+  - [Overlay Configurations](#overlay-configurations)
+  - [Benefits](#benefits)
+- [FluxCD Authentication with GitLab](#fluxcd-authentication-with-gitlab)
+  - [1. Runtime Git Operations (SSH Deploy Key)](#1-runtime-git-operations-ssh-deploy-key)
+  - [2. Initial Bootstrap (`flux bootstrap gitlab` command)](#2-initial-bootstrap-flux-bootstrap-gitlab-command)
+    - [GitLab Personal Access Token (PAT) Usage](#gitlab-personal-access-token-pat-usage)
+    - [Enterprise/Self-Hosted GitLab Considerations](#enterpriseself-hosted-gitlab-considerations)
+- [Core FluxCD Resources](#core-fluxcd-resources)
+  - [`GitRepository` Source](#gitrepository-source)
+  - [`Kustomization`](#kustomization)
+  - [`HelmRepository` Source](#helmrepository-source)
+  - [`HelmRelease`](#helmrelease)
+- [Workflow Overview](#workflow-overview)
+  - [Initial Cluster Bootstrap](#initial-cluster-bootstrap)
+  - [Deploying/Updating Infrastructure Components](#deployingupdating-infrastructure-components)
+  - [Deploying/Updating Applications](#deployingupdating-applications)
+  - [Adding New Clusters](#adding-new-clusters)
+- [Key Management and Secrets](#key-management-and-secrets)
+  - [Flux SSH Private Key](#flux-ssh-private-key)
+  - [Application Secrets](#application-secrets)
+- [Security Considerations](#security-considerations)
+
+## GitOps Principles with FluxCD
+
+GitOps is an operational model for Kubernetes and cloud-native applications. It relies on Git as the single source of truth for declarative infrastructure and applications.
+
+FluxCD implements GitOps by continuously synchronizing the state of your Kubernetes clusters with the configurations defined in a Git repository.
+
+Key benefits include:
+- **Declarative**: Desired state is defined in Git.
+- **Version Controlled**: All changes are tracked, auditable, and revertible through Git history.
+- **Automated**: Flux automates the deployment and reconciliation process.
+- **Consistency**: Ensures consistency between declared state and live state.
+
+## Monorepo Strategy
+
+### Rationale
+A single Git repository (monorepo) will house all FluxCD configurations (`flux-config/` directory) for all environments (e.g., dev, staging, production) and all clusters.
+
+- **Simplicity**: Easier to manage and understand the overall state.
+- **Consistency**: Promotes consistent tooling and practices across environments.
+- **Atomic Changes**: Changes affecting multiple components or clusters can be made in a single commit/PR.
+- **Collaboration**: Centralized place for teams to collaborate on cluster configurations.
+
+### Repository Access (SSH Authentication)
+FluxCD components running in each Kubernetes cluster will authenticate to the GitLab monorepo using a dedicated SSH key pair.
+
+- **SSH Public Key**: Configured as a **Deploy Key** in the GitLab repository settings. This key should ideally have read-only access.
+- **SSH Private Key**: Stored securely as a Kubernetes secret within the `flux-system` namespace of each cluster. This secret is used by the Flux `GitRepository` source.
+
+## `flux-config/` Directory Structure
+
+The `flux-config/` directory at the root of the GitLab monorepo is structured as follows:
+
+```
+flux-config/
+├── README.md                     # Overview and links to detailed guides
+├── flux-howto.md                 # Renamed to docs/phase2-fluxcd-operational-guide.md
+├── bases/                        # Common, reusable Kustomize configurations
+│   ├── <component-or-app-name>/  # e.g., ingress-nginx, cert-manager, my-app
+│   │   ├── helmrelease.yaml      # Base HelmRelease (or other manifests)
+│   │   └── kustomization.yaml    # Kustomization for this base
+│   └── ...
+└── clusters/                     # Cluster-specific overlays
+    ├── <cluster_identifier>/     # e.g., platform-core-dev-aks
+    │   ├── flux-system/          # FluxCD's own configurations for this cluster
+    │   │   ├── gotk-components.yaml # Manifests defining Flux components (generated by bootstrap)
+    │   │   ├── gotk-sync.yaml       # GitRepository and root Kustomization (generated by bootstrap)
+    │   │   └── kustomizations.yaml  # Main Kustomization orchestrating this cluster's sync
+    │   ├── infrastructure/         # Overlays for infrastructure components for this cluster
+    │   │   ├── namespaces/
+    │   │   ├── helm-repositories/
+    │   │   ├── components/          # e.g., ingress-nginx, cert-manager overlays
+    │   │   └── cluster-issuers/
+    │   └── apps/                   # Overlays for applications deployed to this cluster
+    │       └── <app-name>/
+    └── ...                       # Configuration for other clusters (e.g., stg, prd)
+```
+
+### Top-Level Files
+- `README.md`: Provides a high-level overview of the `flux-config` setup and points to more detailed documentation.
+
+### `bases/` Directory
+Contains Kustomize bases for common infrastructure components (e.g., Nginx, cert-manager) and applications. These are generic configurations intended to be reused across multiple clusters/environments.
+- Each base typically includes a `helmrelease.yaml` (if using Helm) or other raw Kubernetes manifests, and a `kustomization.yaml`.
+
+### `clusters/` Directory
+Contains subdirectories for each target Kubernetes cluster (e.g., `platform-core-dev-aks`). Each cluster directory applies overlays to the common bases.
+
+#### `clusters/<cluster-name>/flux-system/`
+This is a critical directory for FluxCD's operation within a specific cluster.
+- `gotk-components.yaml`: Defines the FluxCD controller Deployments, ServiceAccounts, etc. Generated and managed by the `flux bootstrap` command.
+- `gotk-sync.yaml`: Defines the primary `GitRepository` source that points to your monorepo and the root `Kustomization` resource that Flux starts syncing from for this cluster. Generated and managed by `flux bootstrap`.
+- `kustomizations.yaml`: The main, user-managed Kustomization file for the cluster. This file defines:
+    - Paths to other Kustomizations for infrastructure and applications for this cluster.
+    - Dependencies between these Kustomizations (`dependsOn`).
+    - Reconciliation order.
+
+#### `clusters/<cluster-name>/infrastructure/`
+Manages infrastructure components specific to this cluster or overlays for common infrastructure.
+- `namespaces/`: Defines Kubernetes Namespaces.
+- `helm-repositories/`: Defines `HelmRepository` custom resources.
+- `components/`: Contains Kustomizations that overlay bases from `flux-config/bases/` for infrastructure services like ingress controllers, cert-manager, etc. Example: `components/ingress-nginx/kustomization.yaml`.
+- `cluster-issuers/`: Manages `ClusterIssuer` resources for cert-manager.
+
+#### `clusters/<cluster-name>/apps/`
+Manages applications deployed to this cluster. Each application typically has its own subdirectory containing a Kustomization that overlays a base application definition from `flux-config/bases/`.
+
+## Kustomize: Base and Overlays Pattern
+
+Kustomize is used extensively to manage configurations without templating and to maintain a clean separation between common configurations and environment-specific customizations.
+
+### Base Configurations
+Located in `flux-config/bases/`. These are generic, reusable sets of Kubernetes manifests or HelmRelease definitions.
+
+### Overlay Configurations
+Located in `flux-config/clusters/<cluster-name>/`. These Kustomizations reference a base and then apply patches or add cluster-specific manifests.
+- **Patches**: Modify attributes of the base resources (e.g., change replica count, update image tag, add environment-specific annotations or ConfigMap values).
+- **Additional Resources**: Add new manifests that are only relevant to that specific cluster.
+
+### Benefits
+- **DRY (Don't Repeat Yourself)**: Common configurations are defined once.
+- **Clarity**: Easy to see what is common versus what is environment-specific.
+- **Maintainability**: Changes to common logic are made in one place.
+
+## FluxCD Authentication with GitLab
+
+Two main authentication scenarios are involved:
+
+### 1. Runtime Git Operations (SSH Deploy Key)
+This is how FluxCD components running in the Kubernetes cluster authenticate to the GitLab monorepo for ongoing synchronization.
+- A dedicated **SSH key pair** is generated.
+- The **public key** is added as a **Deploy Key** to the GitLab repository (ideally with read-only permissions).
+- The **private key** is provided to the `flux bootstrap` command (`--private-key-file`), which then stores it as a Kubernetes secret (default name `flux-system` in the `flux-system` namespace). This secret is referenced by the `GitRepository` Flux source.
+
+### 2. Initial Bootstrap (`flux bootstrap gitlab` command)
+This command is run once from a user's machine or CI/CD pipeline to set up FluxCD on a cluster.
+
+#### GitLab Personal Access Token (PAT) Usage
+- The `flux bootstrap gitlab` CLI tool itself requires a **GitLab Personal Access Token (PAT)** to interact with the GitLab API.
+- This PAT needs `api`, `read_repository`, and `write_repository` scopes.
+- It is used by the bootstrap tool to:
+    1.  Verify the existence of the GitLab repository and user permissions.
+    2.  Commit the initial FluxCD manifests (e.g., `gotk-components.yaml`, `gotk-sync.yaml`) to the specified `--path` in your GitLab monorepo.
+- **This PAT is NOT stored in the cluster and is NOT used by Flux for its runtime Git operations once SSH is configured via the private key.** It is solely for the bootstrap CLI's execution.
+
+#### Enterprise/Self-Hosted GitLab Considerations
+If using a GitLab instance not hosted on `gitlab.com`:
+- `--hostname <your-gitlab-api-hostname>`: Tells the bootstrap CLI which GitLab API endpoint to talk to (using the PAT).
+- `--ssh-hostname <your-gitlab-ssh-hostname>`: Tells FluxCD what hostname to use for constructing SSH Git URLs for the `GitRepository` source (defaults to the value of `--hostname` if not specified).
+
+## Core FluxCD Resources
+
+FluxCD uses several Custom Resource Definitions (CRDs) to manage the GitOps workflow:
+
+### `GitRepository` Source
+- Defines a Git repository that Flux should monitor.
+- Specifies the URL (SSH), branch, interval for pulling, and a reference to the Kubernetes secret containing the SSH private key.
+- Example created by bootstrap in `gotk-sync.yaml`.
+
+### `Kustomization`
+- Defines how to take manifests from a source (like a `GitRepository`) and apply them to the cluster using Kustomize.
+- Specifies the path within the source, Kustomize build options, dependencies on other Kustomizations (`dependsOn`), health checks, and pruning behavior.
+- The main cluster Kustomization is in `clusters/<cluster-name>/flux-system/kustomizations.yaml`.
+
+### `HelmRepository` Source
+- Defines a Helm chart repository that Flux can pull charts from (e.g., Bitnami, Jetstack).
+- Specifies the URL and polling interval.
+
+### `HelmRelease`
+- Defines a Helm release that Flux should manage.
+- Specifies the chart name, version, source `HelmRepository`, target namespace, and values to customize the chart.
+
+## Workflow Overview
+
+### Initial Cluster Bootstrap
+- Documented in `docs/phase2-fluxcd-bootstrap-guide.md`.
+- Involves running `flux bootstrap gitlab` with appropriate parameters (PAT, SSH private key file, repository details, path to cluster config).
+
+### Deploying/Updating Infrastructure Components
+1.  Modify/add base configurations in `flux-config/bases/` if it's a new component or a shared change.
+2.  Modify/add overlay Kustomizations in `flux-config/clusters/<cluster-name>/infrastructure/components/`.
+3.  Update the grouping Kustomization in `flux-config/clusters/<cluster-name>/infrastructure/components/kustomization.yaml`.
+4.  Ensure the main cluster Kustomization (`flux-config/clusters/<cluster-name>/flux-system/kustomizations.yaml`) correctly references these with dependencies.
+5.  Commit and push changes to Git. Flux reconciles automatically.
+
+### Deploying/Updating Applications
+Similar to infrastructure components, but typically within the `flux-config/clusters/<cluster-name>/apps/` directory.
+
+### Adding New Clusters
+1.  Create a new directory structure under `flux-config/clusters/` for the new cluster.
+2.  Define its specific overlays and main Kustomization (`flux-system/kustomizations.yaml`).
+3.  Commit and push this structure to GitLab.
+4.  Run `flux bootstrap gitlab` targeting the new cluster and the new path in the monorepo.
+
+## Key Management and Secrets
+
+### Flux SSH Private Key
+- Stored as a Kubernetes secret in the `flux-system` namespace, managed by Flux itself during bootstrap.
+- Access to this secret and namespace should be tightly controlled via RBAC.
+
+### Application Secrets
+- **Not stored directly in Git.**
+- Recommended approaches:
+    - **External Secrets Operator (ESO)**: Syncs secrets from external stores like Azure Key Vault, HashiCorp Vault into Kubernetes secrets.
+    - **Azure Key Vault Provider for Secrets Store CSI Driver (AKV2K8S)**: Mounts secrets from Azure Key Vault directly into pods as files or environment variables.
+    - **Sealed Secrets (Bitnami)**: Encrypt secrets that can only be decrypted by a controller running in the cluster. Safe to store in Git.
+- The choice depends on security requirements and existing infrastructure. ESO or AKV2K8S are common with Azure.
+
+## Security Considerations
+
+- **Least Privilege for Deploy Key**: The SSH Deploy Key used by Flux should ideally have read-only access to the GitLab monorepo.
+- **GitLab PAT Security**: The PAT used for bootstrap is powerful. It should be stored securely, have minimum necessary scopes, and ideally be short-lived or used in a controlled CI/CD environment.
+- **RBAC**: Implement strong RBAC within Kubernetes to limit access to Flux resources and the `flux-system` namespace.
+- **Network Policies**: Use NetworkPolicies to restrict traffic to/from Flux controllers if necessary.
+- **Image Provenance & Scanning**: Ensure container images deployed by Flux are from trusted sources and are scanned for vulnerabilities.
+- **Policy Enforcement**: Use tools like Kyverno or OPA Gatekeeper (managed via Flux) to enforce cluster policies. 

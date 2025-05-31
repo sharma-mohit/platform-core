@@ -1,8 +1,31 @@
-# FluxCD Configuration
+# FluxCD Configuration (Monorepo)
 
-This directory contains the Kubernetes configurations that will be managed by FluxCD for the AI Platform, following a "base and overlays" pattern.
+This directory (`flux-config/`) is the root of the GitLab monorepository used to manage all Kubernetes cluster configurations via FluxCD, following GitOps principles.
 
-**For detailed instructions on how to manage your cluster, infrastructure components, and applications using this setup, please refer to the comprehensive guide: [`flux-howto.md`](./flux-howto.md).**
+It contains the actual Kustomize bases and cluster-specific overlays that define the desired state of your Kubernetes environments.
+
+## Documentation
+
+For a complete understanding of the FluxCD setup, including architecture, initial bootstrap, and ongoing operational procedures, please refer to the main documentation in the `docs/` directory at the root of this project:
+
+1.  **FluxCD Architecture**: Understand the design, monorepo structure, Kustomize patterns, and authentication mechanisms.
+    *   [`../docs/phase2-fluxcd-architecture.md`](../docs/phase2-fluxcd-architecture.md)
+
+2.  **Initial Cluster Bootstrap Guide**: Step-by-step instructions for setting up FluxCD on a new AKS cluster for the first time.
+    *   [`../docs/phase2-fluxcd-bootstrap-guide.md`](../docs/phase2-fluxcd-bootstrap-guide.md)
+
+3.  **FluxCD Operational Guide**: Comprehensive instructions for managing your cluster configurations, infrastructure components, and applications *after* initial bootstrap.
+    *   [`../docs/phase2-fluxcd-operational-guide.md`](../docs/phase2-fluxcd-operational-guide.md)
+
+## Repository Structure Overview (`flux-config/`)
+
+-   **`bases/`**: Contains common, reusable Kustomize bases for infrastructure and applications.
+-   **`clusters/`**: Contains cluster-specific overlays. Each sub-directory (e.g., `platform-core-dev-aks/`) represents a unique Kubernetes cluster environment and includes:
+    -   `flux-system/`: FluxCD's own synchronization configurations for that cluster (including the main `kustomizations.yaml` you manage, and `gotk-*.yaml` files managed by Flux bootstrap).
+    -   `infrastructure/`: Overlays for shared infrastructure components.
+    -   `apps/`: Overlays for application deployments.
+
+For a detailed explanation of this structure and how to work with it, please consult the [FluxCD Operational Guide](../docs/phase2-fluxcd-operational-guide.md) and the [FluxCD Architecture Guide](../docs/phase2-fluxcd-architecture.md).
 
 ## Directory Structure Overview
 

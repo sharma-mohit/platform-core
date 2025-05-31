@@ -88,4 +88,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `flux-config/clusters/platform-core-dev-aks/infrastructure/cluster-issuers/kustomization.yaml` to use the new overlay structure.
   - Updated `flux-config/flux-howto.md` to reflect this change.
 
+### Fixed
+- Corrected resource group scoping in `scripts/validate-week1-prerequisites.sh` to ensure `RG_NAME` is correctly set within loops for different Azure service checks.
+- Added debug mode (`-d` or `--debug`) to `scripts/validate-week1-prerequisites.sh` using `set -x` for easier troubleshooting.
+
+## [Unreleased] - 2024-07-25
+
+### Changed
+- Updated FluxCD documentation (`terraform/docs/phase2-week1-fluxcd-setup.md`, `flux-config/flux-howto.md`, `flux-config/README.md`) to reflect:
+  - Use of a **single monorepo** for all FluxCD configurations (dev, stg, prd).
+  - Authentication via a **single SSH key pair** (public key as GitLab Deploy Key, private key in cluster secret).
+  - `flux bootstrap gitlab` command and `GitRepository` resource configured for **SSH authentication**.
+  - Clarified the requirement of a GitLab Personal Access Token (PAT) specifically for the `flux bootstrap gitlab` command execution, while runtime Git operations use SSH.
+  - Included `--hostname` and `--ssh-hostname` flags in bootstrap documentation for users with self-hosted/enterprise GitLab instances.
+
+## [Unreleased] - 2024-07-26
+
+### Added
+- Created new documentation structure within the top-level `docs/` directory:
+  - `docs/phase1-terraform-architecture.md`: New document detailing Terraform architecture, modules, environment strategy, and core components.
+  - `docs/phase1-terraform-execution-guide.md`: New document providing step-by-step instructions for Terraform setup and environment provisioning.
+  - `docs/phase2-fluxcd-architecture.md`: New document explaining FluxCD GitOps monorepo strategy, `flux-config/` structure, Kustomize patterns, and authentication.
+
+### Changed
+- **Restructured Phase 2 FluxCD Documentation:**
+  - Moved `terraform/docs/phase2-week1-fluxcd-setup.md` to `docs/phase2-fluxcd-bootstrap-guide.md`. Updated content to focus solely on initial cluster bootstrap, clarified PAT vs. SSH key usage, and aligned links.
+  - Moved `flux-config/flux-howto.md` to `docs/phase2-fluxcd-operational-guide.md`. Updated content to serve as the comprehensive guide for ongoing FluxCD operations, and aligned links.
+  - Simplified `flux-config/README.md` to primarily point to the new, centralized documentation in the `docs/` directory.
+- Ensured all new and updated documentation consistently reflects the SSH-based monorepo strategy for FluxCD, including GitLab enterprise/self-hosted considerations and the PAT vs. SSH key distinction.
+
+### Removed
+- Deleted `terraform/docs/phase2-week1-fluxcd-setup.md` (superseded by `docs/phase2-fluxcd-bootstrap-guide.md`).
+- Deleted `flux-config/flux-howto.md` (superseded by `docs/phase2-fluxcd-operational-guide.md`).
+- Deleted the `gitops-bootstrap/` directory as it was obsolete and superseded by the `flux-config/` monorepo approach.
+
 ## [Unreleased] 
+
+### Removed
+- Deleted the `gitops-bootstrap/` directory as it was obsolete and superseded by the `flux-config/` monorepo approach. 
