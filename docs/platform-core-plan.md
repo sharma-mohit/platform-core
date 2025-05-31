@@ -1,4 +1,3 @@
-
 # 🧱 Revised Platform Core Plan (Everything-as-Code)
 
 A fully automated, production-grade AI platform infrastructure built entirely as code — supporting multi-region AKS clusters, secure and scalable GPU workloads, GitOps deployment, and AI/ML capabilities.
@@ -74,10 +73,10 @@ A fully automated, production-grade AI platform infrastructure built entirely as
   - Drift detection
 
 ### GitOps Structure (FluxCD)
-- GitOps repo: `gitops-bootstrap/clusters/<env-region>/`
-- App Helm templates
+- GitOps repo: `gitops-bootstrap/clusters/<env-region>/` using FluxCD and Kustomize
+- App Helm templates and Kustomize overlays
 - Canary, blue-green, and rollback support
-- FluxCD Kustomizations
+- FluxCD Kustomizations for base and environment-specific configurations
 
 ---
 
@@ -133,7 +132,7 @@ A fully automated, production-grade AI platform infrastructure built entirely as
 
 ### Layer Separation
 - Terraform → infra
-- FluxCD → GitOps
+- FluxCD with Kustomize → GitOps
 - Helm/Kustomize → config
 - GitLab CI → pipelines
 

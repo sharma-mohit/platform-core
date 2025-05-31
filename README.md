@@ -68,31 +68,47 @@ platform-core/
    cd platform-core
    ```
 
-2. **Configure Azure**:
+2. **Review Project Documentation**:
+   - Read the [Product Requirements Document (PRD)](docs/PRD.md) for project overview
+   - Check the [Roadmap](docs/ROADMAP.md) for implementation phases
+   - Review the [Platform Core Plan](docs/platform-core-plan.md) for architecture details
+
+3. **Configure Azure**:
    ```bash
    az login
    az account set --subscription <your-subscription-id>
    ```
 
-3. **Set Up Terraform Backend**:
-   ```bash
-   cd terraform/scripts
-   ./setup-terraform-backend.sh
-   ```
-
-4. **Deploy Infrastructure**:
-   - Follow the [Phase 1 Implementation Guide](terraform/docs/phase1-howto.md)
+4. **Phase 1: Core Infrastructure**:
+   - Follow the [Phase 1 Implementation Guide](docs/phase1-howto.md)
+   - Set up Terraform backend using the provided scripts
+   - Deploy AKS clusters, ACR, Key Vault, and networking
    - Start with the development environment
-   - Review and customize variables as needed
 
-5. **Verify Deployment**:
+5. **Phase 2: GitOps & Platform Bootstrap**:
+   - Follow the [Phase 2 Implementation Guide](docs/phase2-howto.md)
+   - Set up FluxCD and GitOps workflows
+   - Deploy observability stack and core platform services
+   - Configure ingress and certificate management
+
+6. **Verify Deployment**:
    ```bash
    # Get AKS credentials
    az aks get-credentials --resource-group <resource-group> --name <cluster-name>
    
    # Verify cluster access
    kubectl get nodes
+   
+   # Check FluxCD status (after Phase 2)
+   flux get all
    ```
+
+### Implementation Guides
+
+- **[Phase 1 How-To](docs/phase1-howto.md)** - Core infrastructure deployment
+- **[Phase 2 How-To](docs/phase2-howto.md)** - GitOps and platform bootstrap
+- **[GitLab to GitHub Migration](docs/GITLAB-TO-GITHUB-MIGRATION.md)** - Migration guide for future platform changes
+- **[Architecture Diagram](terraform/docs/architecture_diagram.md)** - Visual representation of the infrastructure
 
 ## Contributing
 

@@ -1,4 +1,3 @@
-
 # 🗺️ Platform Core Roadmap
 
 This roadmap outlines the phased development of a secure, modular, cloud-native AI platform built on Azure Kubernetes Service (AKS), optimized for self-hosted LLMs (e.g., LLaMA), multi-agent systems (RAG, RAT, MCP), and enterprise applications.
@@ -42,7 +41,7 @@ This roadmap outlines the phased development of a secure, modular, cloud-native 
 - Enable external-secrets integration with Azure Key Vault
 
 ### Deliverables
-- FluxCD manifests and sync configs
+- FluxCD manifests and Kustomize configurations for sync
 - Helm charts for core services
 - TLS using custom Cloudflare origin certs
 - Secrets operator setup with initial sync

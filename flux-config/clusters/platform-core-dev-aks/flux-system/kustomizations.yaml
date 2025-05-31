@@ -1,0 +1,93 @@
+# This Kustomization applies all other Kustomizations in the correct order.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-config # This is the top-level Kustomization that flux-system syncs to.
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/platform-core-dev-aks/flux-system
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system # This refers to the GitRepository created by bootstrap
+  dependsOn:
+    - name: infra-namespaces
+    - name: infra-helm-repos
+    - name: infra-components
+    - name: infra-cluster-issuers
+    - name: apps
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-namespaces
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/platform-core-dev-aks/infrastructure/namespaces
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-helm-repos
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/platform-core-dev-aks/infrastructure/helm-repositories
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infra-namespaces
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-components
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/platform-core-dev-aks/infrastructure/components
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infra-namespaces
+    - name: infra-helm-repos
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-cluster-issuers
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/platform-core-dev-aks/infrastructure/cluster-issuers
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infra-components
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/platform-core-dev-aks/apps
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infra-cluster-issuers

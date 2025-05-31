@@ -1,4 +1,3 @@
-
 # 📘 Product Requirements Document (PRD): Modular AI Platform on Azure
 
 ## 1. Overview
@@ -24,7 +23,7 @@ This document defines the requirements for a secure, scalable, modular AI platfo
 
 - Multi-environment AKS deployments (`dev-uaenorth`, `stg-uaenorth`, `prd-uaenorth`)
 - Infrastructure-as-code using Terraform
-- GitOps integration with FluxCD
+- GitOps integration with FluxCD and Kustomize
 - GPU scheduling, monitoring, and workload optimization
 - Secret management via Azure Key Vault
 - TLS using custom certificates via Cloudflare
@@ -49,8 +48,8 @@ This document defines the requirements for a secure, scalable, modular AI platfo
 
 ### GitOps
 - Bootstrap FluxCD for continuous delivery
-- Sync application manifests from Git
-- Manage Helm releases via GitOps overlays
+- Sync application manifests from Git using FluxCD and Kustomize
+- Manage Helm releases and Kustomize overlays via GitOps
 - Support for app rollback and promotion
 
 ### CI/CD

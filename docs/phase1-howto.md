@@ -7,7 +7,7 @@ This guide provides step-by-step instructions for implementing Phase 1 of the pl
 1. Azure CLI installed and configured
 2. Terraform v1.0.0 or later installed
 3. Azure subscription with appropriate permissions
-4. Azure Storage Account for Terraform state (created using `scripts/setup-terraform-backend.sh`)
+4. Azure Storage Account for Terraform state (created using `../scripts/setup-terraform-backend.sh`)
 
 ## Directory Structure
 
@@ -66,7 +66,7 @@ terraform/
 
 #### Network Module
 
-1. Review the network module documentation in `modules/network/README.md`
+1. Review the network module documentation in `../terraform/modules/network/README.md`
 2. The module creates:
    - Virtual Network
    - Subnets for AKS, ACR, and Key Vault
@@ -75,7 +75,7 @@ terraform/
 
 #### AKS Module
 
-1. Review the AKS module documentation in `modules/aks/README.md`
+1. Review the AKS module documentation in `../terraform/modules/aks/README.md`
 2. The module deploys:
    - AKS cluster with system and user node pools
    - GPU node pool (optional)
@@ -85,7 +85,7 @@ terraform/
 
 #### ACR Module
 
-1. Review the ACR module documentation in `modules/acr/README.md`
+1. Review the ACR module documentation in `../terraform/modules/acr/README.md`
 2. The module sets up:
    - Premium SKU Azure Container Registry
    - Private endpoint
@@ -95,7 +95,7 @@ terraform/
 
 #### Key Vault Module
 
-1. Review the Key Vault module documentation in `modules/keyvault/README.md`
+1. Review the Key Vault module documentation in `../terraform/modules/keyvault/README.md`
 2. The module configures:
    - Premium SKU Key Vault
    - Private endpoint
