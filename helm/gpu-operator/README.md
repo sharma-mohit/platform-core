@@ -1,1 +1,0 @@
-# helm/gpu-operator
