@@ -11,7 +11,7 @@ spec:
     branch: main
   secretRef:
     name: flux-system
-  url: https://gitlab.g42.ae/mohit.sharma/platform-core.git
+  url: https://github.com/mohit-inception/platform-core.git
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

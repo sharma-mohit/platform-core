@@ -200,47 +200,58 @@ for ENV in "${ENVIRONMENTS[@]}"; do
 done
 
 echo ""
-echo "6. Checking SSH Keys for GitLab..."
+echo "6. Checking SSH Keys for GitHub..."
 echo "----------------------------------"
 
-# Check if deploy keys exist
-for ENV in "${ENVIRONMENTS[@]}"; do
-    KEY_FILE="$HOME/.ssh/fluxcd-deploy-key-$ENV"
-    
-    if [ -f "$KEY_FILE" ]; then
-        print_status 0 "Deploy key exists for $ENV: $KEY_FILE"
-    else
-        print_warning "Deploy key missing for $ENV. Generate with: ssh-keygen -t ed25519 -C 'fluxcd-deploy-key-$ENV' -f $KEY_FILE"
-    fi
-done
+# Check if common SSH key files exist
+SSH_KEYS_FOUND=0
+if [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/id_ed25519 ]; then
+  print_status 0 "Standard SSH key (id_rsa or id_ed25519) found."
+  SSH_KEYS_FOUND=1
+else
+  print_warning "No standard SSH key (id_rsa or id_ed25519) found in ~/.ssh/. Manual check needed if using custom key."
+fi
+
+if [ -f "$FLUX_PRIVATE_KEY_FILE" ]; then
+    print_status 0 "FluxCD private key ($FLUX_PRIVATE_KEY_FILE) found."
+    SSH_KEYS_FOUND=1
+else
+    print_warning "FluxCD private key ($FLUX_PRIVATE_KEY_FILE) NOT found. This will be needed for Flux bootstrap."
+fi
+
+if [ $SSH_KEYS_FOUND -eq 0 ]; then
+    OVERALL_STATUS=1
+fi
 
 echo ""
 echo "7. Checking Network Connectivity..."
 echo "-----------------------------------"
 
-# Test GitLab connectivity
-if curl -s --connect-timeout 5 https://gitlab.com > /dev/null; then
-    print_status 0 "GitLab connectivity verified"
+# Test GitHub connectivity
+if curl -s --connect-timeout 5 https://github.com > /dev/null; then
+  print_status 0 "GitHub connectivity verified"
 else
-    print_status 1 "Cannot reach GitLab"
+  print_status 1 "Cannot reach GitHub"
+  OVERALL_STATUS=1
 fi
 
-# Test GitHub connectivity (for future migration)
-if curl -s --connect-timeout 5 https://github.com > /dev/null; then
-    print_status 0 "GitHub connectivity verified"
+# Test Azure Portal connectivity
+if curl -s --connect-timeout 5 https://portal.azure.com > /dev/null; then
+  print_status 0 "Azure Portal connectivity verified"
 else
-    print_warning "Cannot reach GitHub (not critical for GitLab implementation)"
+  print_status 1 "Cannot reach Azure Portal"
+  OVERALL_STATUS=1
 fi
 
 echo ""
-echo "8. Environment Variables Check..."
+echo "8. Checking Environment Variables..."
 echo "---------------------------------"
 
-# Check if required environment variables are set
-if [ -z "$GITLAB_TOKEN" ]; then
-    print_warning "GITLAB_TOKEN not set (will be needed for API operations)"
+# Check for GITHUB_TOKEN (optional, but good for API operations)
+if [ -z "$GITHUB_TOKEN" ]; then
+  print_warning "GITHUB_TOKEN not set (may be needed for some GitHub API operations/scripts)"
 else
-    print_status 0 "GITLAB_TOKEN is set"
+  print_status 0 "GITHUB_TOKEN is set"
 fi
 
 echo ""

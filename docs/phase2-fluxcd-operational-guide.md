@@ -1,276 +1,207 @@
-# Phase 2: FluxCD - Operational Guide
+# FluxCD GitOps Operational Guide (GitHub)
 
-This guide provides comprehensive instructions for managing your Kubernetes clusters, infrastructure components, and applications using FluxCD with a single GitLab monorepository and SSH authentication, after the initial bootstrap has been completed.
+This guide provides operational instructions for managing Kubernetes cluster configurations, infrastructure components, and applications using FluxCD with a single GitHub monorepository and SSH authentication, after the initial bootstrap has been completed.
 
-**For the overall FluxCD GitOps architecture, refer to [./phase2-fluxcd-architecture.md](./phase2-fluxcd-architecture.md).**
-**For the initial, one-time bootstrap of FluxCD onto a new cluster, refer to [./phase2-fluxcd-bootstrap-guide.md](./phase2-fluxcd-bootstrap-guide.md).**
+**For the initial bootstrap procedure, refer to [./phase2-fluxcd-bootstrap-guide.md](./phase2-fluxcd-bootstrap-guide.md).**
+**For the overall FluxCD architecture, refer to [./phase2-fluxcd-architecture.md](./phase2-fluxcd-architecture.md).**
 
 ## Table of Contents
 
 - [Core Concepts Review](#core-concepts-review)
-  - [GitOps with FluxCD](#gitops-with-fluxcd)
-  - [Monorepo for Flux Configuration](#monorepo-for-flux-configuration)
-  - [Base and Overlays Pattern (Kustomize)](#base-and-overlays-pattern-kustomize)
-- [Git Repository Structure (`flux-config/`) Review](#git-repository-structure-flux-config-review)
-- [Flux Git Authentication (SSH & Bootstrap PAT) Review](#flux-git-authentication-ssh--bootstrap-pat-review)
-- [Managing Kubernetes Resources](#managing-kubernetes-resources)
-  - [Namespaces](#namespaces)
-  - [Helm Repositories](#helm-repositories)
-  - [Helm Releases (Infrastructure & Applications)](#helm-releases-infrastructure--applications)
-  - [ClusterIssuers (cert-manager)](#clusterissuers-cert-manager)
-- [Workflow: Adding a New Application](#workflow-adding-a-new-application)
-- [Workflow: Updating an Existing Application/Component](#workflow-updating-an-existing-applicationcomponent)
-- [Workflow: Adding a New Cluster (Post-Initial Setup)](#workflow-adding-a-new-cluster-post-initial-setup)
+  - [GitHub Monorepo for Flux Configuration](#github-monorepo-for-flux-configuration)
+  - [Kustomize Bases and Overlays](#kustomize-bases-and-overlays)
+  - [FluxCD Controllers](#fluxcd-controllers)
+  - [Authentication (SSH & PAT)](#authentication-ssh--pat)
+- [Managing Cluster Configurations](#managing-cluster-configurations)
+  - [Directory Structure (`flux-config/`)](#directory-structure-flux-config)
+  - [Updating an Existing Component](#updating-an-existing-component)
+  - [Adding a New Infrastructure Component](#adding-a-new-infrastructure-component)
+  - [Adding a New Application](#adding-a-new-application)
+- [Managing Multiple Clusters](#managing-multiple-clusters)
+  - [Adding a New Cluster Environment](#adding-a-new-cluster-environment)
+- [FluxCD CLI Common Commands](#fluxcd-cli-common-commands)
 - [Troubleshooting Common Issues](#troubleshooting-common-issues)
-- [Security Considerations Review](#security-considerations-review)
+- [Security Best Practices](#security-best-practices)
 
 ## Core Concepts Review
 
-A brief review of concepts detailed in the [Architecture Guide](./phase2-fluxcd-architecture.md).
+### GitHub Monorepo for Flux Configuration
+All FluxCD configurations for all environments and clusters are in the `flux-config/` directory within a single GitHub repository.
+- **Source of Truth**: This repository is the single source of truth for the desired state of your Kubernetes clusters.
+- **Git Workflow**: Changes are made via standard Git commits and pull requests (if your team uses them).
 
-### GitOps with FluxCD
-Your Git repository (`flux-config/` directory) is the single source of truth. FluxCD automates deployment and configuration synchronization.
+### Kustomize Bases and Overlays
+- **`bases/`**: Contains generic, reusable Kustomize configurations for services (e.g., `bases/ingress-nginx/`, `bases/cert-manager/`). Each base typically includes a `helmrelease.yaml` and a `kustomization.yaml`.
+- **`clusters/<cluster-name>/`**: Contains cluster-specific overlays that customize the bases. For example, `clusters/platform-core-dev-aks/infrastructure/components/ingress-nginx/kustomization.yaml` would point to `../../../../../../bases/ingress-nginx` and apply dev-specific patches or values.
 
-### Monorepo for Flux Configuration
-All FluxCD configurations for all environments and clusters are in the `flux-config/` directory within a single GitLab repository.
+### FluxCD Controllers
+- **Source Controller**: Fetches manifests from the GitHub repository.
+- **Kustomize Controller**: Applies Kustomize overlays and deploys the resulting manifests.
+- **Helm Controller**: Manages Helm chart releases defined by `HelmRelease` objects.
+- **Notification Controller**: Handles inbound events (e.g., GitHub webhooks) and outbound notifications.
 
-### Base and Overlays Pattern (Kustomize)
-- **`flux-config/bases/`**: Common, reusable configurations.
-- **`flux-config/clusters/<cluster-name>/`**: Environment-specific overlays that customize bases.
+### Authentication (SSH & PAT)
+- **Runtime (SSH)**: Flux components in the cluster use an SSH key pair (private key in a K8s secret, public key as a GitHub Deploy Key) for ongoing Git operations. This is set up by the bootstrap process.
+- **Initial Bootstrap (`flux bootstrap github` command)**: The CLI tool itself might use a GitHub Personal Access Token (PAT) for API interactions (if `--token-auth` is used) and to commit initial Flux files to the repository. This PAT is not used by Flux runtime if SSH is configured. Details in the [Bootstrap Guide](./phase2-fluxcd-bootstrap-guide.md).
 
-## Git Repository Structure (`flux-config/`) Review
+## Managing Cluster Configurations
 
-Refer to the [Architecture Guide](./phase2-fluxcd-architecture.md) for the detailed structure of the `flux-config/` monorepo directory.
-Key reminder: `clusters/<cluster-name>/flux-system/kustomizations.yaml` is the main entry point for a cluster's synchronization, managed by you.
-`gotk-sync.yaml` and `gotk-components.yaml` in the same directory are managed by the `flux bootstrap` process.
+### Directory Structure (`flux-config/`)
+(Refer to `docs/phase2-fluxcd-architecture.md` for a detailed diagram and explanation)
 
-## Flux Git Authentication (SSH & Bootstrap PAT) Review
+-   **`flux-config/`**
+    -   **`bases/`**
+        -   `<component-or-app-name>/` (e.g., `ingress-nginx/`, `my-app/`)
+            -   `helmrelease.yaml` (if using Helm)
+            -   `kustomization.yaml`
+            -   Other raw Kubernetes manifests...
+    -   **`clusters/`**
+        -   `<cluster-name>/` (e.g., `platform-core-dev-aks/`)
+            -   **`flux-system/`**: Managed by Flux bootstrap. Contains `gotk-*.yaml` and the root `kustomization.yaml` you manage for this cluster.
+            -   **`infrastructure/`**: Kustomizations for infrastructure components.
+                -   `namespaces/`
+                -   `helm-repositories/`
+                -   `components/` (overlays for base components)
+                -   `cluster-issuers/`
+                -   `kustomization.yaml` (groups all infra items for this cluster)
+            -   **`apps/`**: Kustomizations for applications.
+                -   `<app-name>/` (overlay for a base app)
+                -   `kustomization.yaml` (groups all apps for this cluster)
 
-- **Runtime (SSH)**: Flux components in the cluster use an SSH key pair (private key in a K8s secret, public key as a GitLab Deploy Key) for ongoing Git operations. This is set up by the bootstrap process.
-- **Initial Bootstrap (`flux bootstrap gitlab` command)**: The CLI tool itself requires a GitLab Personal Access Token (PAT) for API interactions and to commit initial Flux files to the repository. This PAT is not used by Flux runtime. Details in the [Bootstrap Guide](./phase2-fluxcd-bootstrap-guide.md).
+### Updating an Existing Component
+(e.g., Upgrading an NGINX Ingress controller version)
 
-## Managing Kubernetes Resources
+1.  **Modify Base Configuration (if applicable)**:
+    *   Edit the HelmRelease in `flux-config/bases/ingress-nginx/helmrelease.yaml` to specify the new chart version.
+    *   Update any default values if necessary.
 
-All resources are defined as YAML manifests within the `flux-config` directory and managed by Kustomizations. Changes are made by committing to Git.
+2.  **Modify Overlay Configuration (if applicable)**:
+    *   If your cluster-specific overlay in `flux-config/clusters/platform-core-dev-aks/infrastructure/components/ingress-nginx/` has version constraints or specific values that need adjustment for the new version, update them there.
 
-### Namespaces
-- Define each namespace in its own YAML file (e.g., `dev-backend-ns.yaml`) within `flux-config/clusters/<cluster-name>/infrastructure/namespaces/`.
-- A `kustomization.yaml` in that directory lists all namespace files.
-- This Kustomization is then referenced by the main cluster Kustomization (`flux-config/clusters/<cluster-name>/flux-system/kustomizations.yaml`) usually as a dependency for other resources.
-
-    ```yaml
-    # flux-config/clusters/platform-core-dev-aks/infrastructure/namespaces/dev-backend-ns.yaml
-    apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: dev-backend
+3.  **Commit and Push Changes**: Commit all modified files to your GitHub monorepository and push to the `main` (or your target) branch.
+    ```bash
+    git add flux-config/bases/ingress-nginx/helmrelease.yaml
+    # Potentially add overlay files if changed
+    git commit -m "Upgrade ingress-nginx to version X.Y.Z"
+    git push origin main
     ```
 
-### Helm Repositories
-- Define `HelmRepository` resources (CRDs provided by Flux) in `flux-config/clusters/<cluster-name>/infrastructure/helm-repositories/`.
-- A `kustomization.yaml` in that directory lists all Helm repository files.
-
-    ```yaml
-    # flux-config/clusters/platform-core-dev-aks/infrastructure/helm-repositories/jetstack-hr.yaml
-    apiVersion: source.toolkit.fluxcd.io/v1beta2 # or v1 for newer Flux versions
-    kind: HelmRepository
-    metadata:
-      name: jetstack
-      namespace: flux-system # Typically deployed in flux-system to be globally available for Flux
-    spec:
-      interval: 1h # How often to fetch new Helm chart versions
-      url: https://charts.jetstack.io
+4.  **Monitor Reconciliation**: Flux will automatically detect the changes and apply them.
+    ```bash
+    flux get kustomizations --all-namespaces --watch
+    flux get helmreleases -n ingress-nginx --watch
+    # Check pod statuses in the relevant namespace (e.g., ingress-nginx)
+    kubectl get pods -n ingress-nginx
     ```
 
-### Helm Releases (Infrastructure & Applications)
+### Adding a New Infrastructure Component
+(e.g., Adding a new monitoring tool, `awesome-monitor`)
 
-Follows the base/overlay pattern.
+1.  **Create Base Configuration**:
+    *   Create a new directory: `flux-config/bases/awesome-monitor/`
+    *   Add its `helmrelease.yaml` (if using Helm) or raw Kubernetes manifests.
+    *   Add a `kustomization.yaml` in `flux-config/bases/awesome-monitor/`:
+        ```yaml
+        apiVersion: kustomize.config.k8s.io/v1beta1
+        kind: Kustomization
+        resources:
+          - helmrelease.yaml # Or your other manifests
+        # Potentially a namespace.yaml if it needs its own namespace
+        ```
 
-1.  **Base HelmRelease**: Defined in `flux-config/bases/<component-name>/helmrelease.yaml`.
-    ```yaml
-    # flux-config/bases/ingress-nginx/helmrelease.yaml
-    apiVersion: helm.toolkit.fluxcd.io/v2 # or v2beta2 for older Flux versions
-    kind: HelmRelease
-    metadata:
-      name: ingress-nginx # This name will be patched by overlays if a different release name is needed per cluster
-      namespace: ingress-nginx # Default namespace, can be overridden by overlay Kustomization
-    spec:
-      interval: 5m
-      chart:
-        spec:
-          chart: ingress-nginx
-          sourceRef:
-            kind: HelmRepository
-            name: ingress-nginx # Assumes a HelmRepository CR with this name exists in flux-system
-            namespace: flux-system
-          version: "4.0.0" # Specify desired chart version
-      # Common values can go here
-      values: 
-        controller:
-          replicaCount: 2
-    ```
-    And its accompanying `kustomization.yaml`:
-    ```yaml
-    # flux-config/bases/ingress-nginx/kustomization.yaml
-    apiVersion: kustomize.config.k8s.io/v1beta1
-    kind: Kustomization
-    resources:
-      - helmrelease.yaml
-    ```
+2.  **Create Cluster Overlay**:
+    *   Create an overlay directory: `flux-config/clusters/platform-core-dev-aks/infrastructure/components/awesome-monitor/`
+    *   Add a `kustomization.yaml` that points to the base and applies any cluster-specific patches or values:
+        ```yaml
+        apiVersion: kustomize.config.k8s.io/v1beta1
+        kind: Kustomization
+        resources:
+          - ../../../../../../bases/awesome-monitor # Path to the base
+        # patchesStrategicMerge:
+        #  - awesome-monitor-values-patch.yaml # If you need to override Helm values
+        ```
+    *   (Optional) Add `awesome-monitor-values-patch.yaml` if you need to provide cluster-specific Helm values.
 
-2.  **Overlay Kustomization**: In `flux-config/clusters/<cluster-name>/infrastructure/components/<component-name>/kustomization.yaml` (for infra) or `flux-config/clusters/<cluster-name>/apps/<app-name>/kustomization.yaml` (for apps).
-    This file points to the base and applies cluster-specific patches or adds values.
+3.  **Reference in Cluster's Infrastructure Kustomization**:
+    *   Edit `flux-config/clusters/platform-core-dev-aks/infrastructure/components/kustomization.yaml`.
+    *   Add `./awesome-monitor` to its `resources:` list.
+    *   Ensure correct dependencies are set using `dependsOn` if `awesome-monitor` requires other components to be ready first.
 
-    ```yaml
-    # flux-config/clusters/platform-core-dev-aks/infrastructure/components/ingress-nginx/kustomization.yaml
-    apiVersion: kustomize.config.k8s.io/v1beta1
-    kind: Kustomization
-    namespace: ingress-nginx # Ensures all resources from this overlay are in the ingress-nginx namespace
-    resources:
-      - ../../../../../bases/ingress-nginx # Relative path to the base Kustomization
-    patches:
-      - target:
-          kind: HelmRelease
-          name: ingress-nginx # Must match the name in the base helmrelease.yaml
-        patch: |-
-          apiVersion: helm.toolkit.fluxcd.io/v2 # or v2beta2
-          kind: HelmRelease
-          metadata:
-            name: ingress-nginx-dev # Cluster-specific release name (if differentiation is needed)
-          spec:
-            values:
-              controller:
-                replicaCount: 1 # Dev-specific value
-                service:
-                  annotations:
-                    # Example Azure-specific annotation for internal LB
-                    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
-    ```
-    This overlay Kustomization is then referenced in a grouping Kustomization (e.g., `flux-config/clusters/<cluster-name>/infrastructure/components/kustomization.yaml`), which is in turn referenced by the main cluster Kustomization (`flux-config/clusters/<cluster-name>/flux-system/kustomizations.yaml`).
-
-### ClusterIssuers (cert-manager)
-Similar to HelmReleases, `ClusterIssuer` (or `Issuer`) resources for cert-manager are managed with a base/overlay pattern.
-
-1.  **Base Issuer**: Defined in `flux-config/bases/cluster-issuers/<issuer-name>/issuer.yaml`.
-    ```yaml
-    # flux-config/bases/cluster-issuers/letsencrypt-staging/issuer.yaml
-    apiVersion: cert-manager.io/v1
-    kind: ClusterIssuer
-    metadata:
-      name: letsencrypt-staging # Base name
-    spec:
-      acme:
-        server: https://acme-staging-v02.api.letsencrypt.org/directory
-        email: your-default-email@example.com # Replace with your default email
-        privateKeySecretRef:
-          name: letsencrypt-staging-private-key # Secret to store ACME account private key
-        solvers:
-          - http01:
-              ingress:
-                class: nginx # Assumes nginx ingress controller is used
-    ```
-    And its `kustomization.yaml`:
-    ```yaml
-    # flux-config/bases/cluster-issuers/letsencrypt-staging/kustomization.yaml
-    apiVersion: kustomize.config.k8s.io/v1beta1
-    kind: Kustomization
-    resources:
-      - issuer.yaml
+4.  **Commit and Push Changes**: Commit all new/modified files to your GitHub monorepository.
+    ```bash
+    git add flux-config/bases/awesome-monitor/
+    git add flux-config/clusters/platform-core-dev-aks/infrastructure/components/awesome-monitor/
+    git add flux-config/clusters/platform-core-dev-aks/infrastructure/components/kustomization.yaml
+    git commit -m "Add awesome-monitor component"
+    git push origin main
     ```
 
-2.  **Overlay Kustomization**: In `flux-config/clusters/<cluster-name>/infrastructure/cluster-issuers/<issuer-name>/kustomization.yaml`.
-    ```yaml
-    # flux-config/clusters/platform-core-dev-aks/infrastructure/cluster-issuers/letsencrypt-staging/kustomization.yaml
-    apiVersion: kustomize.config.k8s.io/v1beta1
-    kind: Kustomization
-    resources:
-      - ../../../../../../bases/cluster-issuers/letsencrypt-staging # Path to base
-    # Patches can be added if needed, e.g., to change the email for this specific cluster.
-    patches:
-      - target:
-          kind: ClusterIssuer
-          name: letsencrypt-staging
-        patch: |-
-          apiVersion: cert-manager.io/v1
-          kind: ClusterIssuer
-          spec:
-            acme:
-              email: dev-cluster-admin@example.com # Override email for dev cluster
+5.  **Monitor Reconciliation**.
+
+### Adding a New Application
+Similar to adding an infrastructure component, but typically under the `flux-config/apps/` directory structure.
+
+1.  **Create Base Application Configuration**: `flux-config/bases/my-cool-app/` (with its `helmrelease.yaml` or manifests, and `kustomization.yaml`).
+2.  **Create Cluster Overlay for Application**: `flux-config/clusters/platform-core-dev-aks/apps/my-cool-app/kustomization.yaml` (pointing to the base and applying cluster-specific config).
+3.  **Reference in Cluster's Apps Kustomization**: Edit `flux-config/clusters/platform-core-dev-aks/apps/kustomization.yaml` and add `./my-cool-app` to its `resources:` list.
+4.  **Commit and Push**: Commit changes to GitHub.
+5.  **Monitor Reconciliation**.
+
+## Managing Multiple Clusters
+
+Your `flux-config/` monorepo is designed to manage multiple clusters (e.g., dev, staging, prod) from the same repository.
+
+### Adding a New Cluster Environment
+(e.g., Setting up a new `platform-core-stg-aks` cluster)
+
+1.  **Prerequisite**: The new AKS cluster (`platform-core-stg-aks`) must exist.
+
+2.  **Create Cluster-Specific Configuration Directory**: Duplicate an existing cluster's configuration structure as a starting point.
+    ```bash
+    cp -r flux-config/clusters/platform-core-dev-aks/ flux-config/clusters/platform-core-stg-aks/
     ```
 
-## Workflow: Adding a New Application
+3.  **Customize for New Cluster**:
+    *   **Remove Flux-managed files**: Delete `flux-config/clusters/platform-core-stg-aks/flux-system/gotk-*.yaml` files. These will be regenerated by the bootstrap process for the new cluster.
+    *   **Adapt `kustomization.yaml`**: Modify `flux-config/clusters/platform-core-stg-aks/flux-system/kustomization.yaml` to ensure it references the correct paths within the *new* `platform-core-stg-aks` directory (e.g., `../infrastructure`, `../apps`).
+    *   **Update Overlays**: Go through the files in `flux-config/clusters/platform-core-stg-aks/infrastructure/` and `flux-config/clusters/platform-core-stg-aks/apps/` and adjust any configurations (e.g., resource limits, hostnames, replica counts, Key Vault URLs) that are specific to the staging environment.
 
-Assume you have a Helm chart for your application `my-app`.
+4.  **Push New Cluster Configuration Structure to GitHub**: Commit and push the new `flux-config/clusters/platform-core-stg-aks/` directory with its adapted configurations (excluding `gotk-*.yaml` files) to your GitHub monorepository.
 
-1.  **Create Base Configuration (Recommended)**:
-    *   Create `flux-config/bases/my-app/`.
-    *   Inside, create `helmrelease.yaml` with common HelmRelease settings for `my-app`.
-    *   Create `kustomization.yaml` referencing `helmrelease.yaml`.
+5.  **Bootstrap FluxCD on the New Cluster**:
+    *   Ensure `kubectl` is configured for the new `platform-core-stg-aks` cluster.
+    *   Run the `flux bootstrap github ...` command as detailed in the [Bootstrap Guide](./phase2-fluxcd-bootstrap-guide.md).
+    *   Use the same GitHub monorepo details (`--owner`, `--repository`), SSH private key file (`--private-key-file`).
+    *   **Crucially, update the `--path` argument** to point to the new cluster's configuration: `--path=./clusters/platform-core-stg-aks/flux-system/` in your GitHub repository.
 
-2.  **Create Overlay Configuration for the Target Cluster (e.g., `dev` cluster)**:
-    *   Create `flux-config/clusters/platform-core-dev-aks/apps/my-app/kustomization.yaml`.
-        *   In `resources:`, reference the base: `../../../../../../bases/my-app`.
-        *   Add a `patches:` section to customize the HelmRelease (e.g., set dev-specific values, image tags, namespace if different from base).
-        *   If `my-app` needs additional manifests specific to `dev` (e.g., `configmap-dev.yaml`), create them in this directory and add them to `resources:` list in this Kustomization.
+6.  **Monitor and Verify**: Check FluxCD components and Kustomizations on the new staging cluster. Ensure it reconciles successfully and deploys the staging-specific configurations.
 
-3.  **Update App Group Kustomization for the Cluster**:
-    *   Edit `flux-config/clusters/platform-core-dev-aks/apps/kustomization.yaml`.
-    *   Add a reference to your new app's overlay Kustomization: `- ./my-app`.
+## FluxCD CLI Common Commands
+(Always specify `--context YOUR_CLUSTER_CONTEXT_NAME` if not your current default context)
 
-4.  **Ensure Dependencies are Met (Namespace, Helm Repo, etc.)**:
-    *   If `my-app` needs a new namespace, ensure it's defined under `flux-config/clusters/platform-core-dev-aks/infrastructure/namespaces/` and included in its Kustomization.
-    *   If `my-app` uses a new Helm repository, ensure the `HelmRepository` CR is defined under `flux-config/clusters/platform-core-dev-aks/infrastructure/helm-repositories/`.
-    *   Update the main cluster Kustomization (`flux-config/clusters/platform-core-dev-aks/flux-system/kustomizations.yaml`) to include these dependencies if they are new, using `dependsOn` to ensure correct creation order (e.g., app Kustomization `dependsOn` namespace Kustomization).
-
-5.  **Commit and Push Changes**: Commit all new/modified files to your GitLab monorepository and push to the `main` (or your target) branch.
-
-6.  **Verify**: Flux will automatically reconcile. Check with `flux get kustomizations -A` (all namespaces) and `flux get helmreleases -A`. Look for status and events.
-
-## Workflow: Updating an Existing Application/Component
-
-1.  **Identify Files**: Locate the base configuration (`flux-config/bases/...`) and/or the overlay Kustomization (`flux-config/clusters/<cluster-name>/...`) for the component.
-2.  **Make Changes**: Modify Helm values in the base `helmrelease.yaml`, image tags or other settings in patches within overlay `kustomization.yaml`, ConfigMap data, etc., as needed.
-3.  **Commit and Push**: Commit changes to GitLab.
-4.  **Verify**: Flux will reconcile. Use `flux` CLI commands to check status (e.g., `flux get hr <release-name> -n <namespace>`).
-
-## Workflow: Adding a New Cluster (Post-Initial Setup)
-
-This assumes you have already bootstrapped at least one cluster and want to add another (e.g., `staging`).
-
-1.  **Create New Cluster Directory Structure in Git**:
-    *   In `flux-config/clusters/`, create a new directory for your cluster (e.g., `platform-core-stg-aks`).
-    *   Mimic the subdirectory structure of an existing cluster (e.g., copy from `platform-core-dev-aks`), focusing on `infrastructure/` and `apps/` overlays, and the main `flux-system/kustomizations.yaml`.
-    *   **Do NOT copy `flux-system/gotk-components.yaml` or `flux-system/gotk-sync.yaml` from another cluster.** These are specific to a bootstrap instance and will be (re)generated for the new cluster by its own bootstrap.
-2.  **Adapt Configuration Files for the New Cluster**:
-    *   Modify `flux-config/clusters/platform-core-stg-aks/flux-system/kustomizations.yaml` to reference the correct paths within the `platform-core-stg-aks` directory for its infrastructure and apps.
-    *   Review and adapt all Kustomizations and YAML overlay files within the new `platform-core-stg-aks/` directory to suit the new environment (e.g., different replica counts, endpoints, resource limits, image tags if not managed by base patches appropriately).
-3.  **Push New Cluster Configuration Structure to GitLab**: Commit and push the new `flux-config/clusters/platform-core-stg-aks/` directory with its adapted configurations (excluding `gotk-*.yaml` files) to your GitLab monorepository.
-4.  **Bootstrap FluxCD on the New Physical Cluster**: This step is identical to the initial bootstrap process for any cluster, but targets the new physical Kubernetes cluster and the new path in Git.
-    *   Ensure your `kubectl` context points to the new physical Kubernetes cluster (e.g., `platform-core-stg-aks`).
-    *   Run the `flux bootstrap gitlab ...` command as detailed in the [Bootstrap Guide](./phase2-fluxcd-bootstrap-guide.md).
-        *   Crucially, set the `--path` argument to the `flux-system` directory of your new cluster configuration in Git (e.g., `--path=./clusters/platform-core-stg-aks/flux-system`).
-        *   Use the same GitLab monorepo details (`--owner`, `--repository`), SSH private key file (`--private-key-file`), and your `GITLAB_TOKEN`.
-    *   This command will generate and commit `gotk-components.yaml` and `gotk-sync.yaml` specifically for this new cluster into `flux-config/clusters/platform-core-stg-aks/flux-system/` in your GitLab repository.
-5.  **Verify**: Once bootstrapped, Flux on the new cluster will start reconciling the configuration from the path you specified (e.g., `flux-config/clusters/platform-core-stg-aks/flux-system/kustomizations.yaml`).
+-   `flux check`: Check prerequisites and Flux components.
+-   `flux get kustomizations --all-namespaces`: List all Kustomizations and their status.
+-   `flux get sources git --all-namespaces`: List GitRepository sources and their status.
+-   `flux get helmreleases --all-namespaces`: List HelmReleases and their status.
+-   `flux logs KUSTOMIZATION_NAME -n flux-system --kind=Kustomization`: View logs for a Kustomization.
+-   `flux reconcile kustomization KUSTOMIZATION_NAME --with-source`: Force reconcile a Kustomization and its source.
+-   `flux reconcile source git GITREPO_NAME`: Force reconcile a GitRepository.
+-   `flux suspend kustomization KUSTOMIZATION_NAME`: Suspend reconciliation for a Kustomization.
+-   `flux resume kustomization KUSTOMIZATION_NAME`: Resume reconciliation.
 
 ## Troubleshooting Common Issues
 
--   **`flux get kustomizations -A` / `flux get hr -A` (HelmRelease)**: Check status, readiness, and error messages for all Flux resources in all namespaces. Use `-A` for all namespaces.
--   **`flux logs <controller-name> -n flux-system --level=error`**: View error logs (e.g., `flux logs kustomize-controller -n flux-system --level=error`). Increase log verbosity (`--level=info` or `debug`) if needed.
--   **`flux reconcile kustomization <name> -n <namespace> --with-source`**: Force reconciliation of a specific Kustomization and its source.
--   **`kubectl describe <resource-type> <resource-name> -n <namespace>`**: Get detailed events and status for specific Kubernetes resources managed by Flux (e.g., `kubectl describe kustomization infra-components -n flux-system`).
--   **Check `dependsOn`**: Incorrect dependencies in Kustomization resources are a common source of errors. Ensure components that rely on others (e.g., an app needing a namespace or a HelmRepository) have the correct `dependsOn` entries pointing to the Kustomization managing the dependency.
--   **SSH Key Issues**:
-    *   Verify the public key is correctly added as a Deploy Key in your GitLab repository settings and has appropriate (read-only is sufficient) access.
-    *   Ensure the private key secret (default `flux-system` in `flux-system` namespace) exists in the cluster and is correctly referenced by the `GitRepository` resource in `flux-config/clusters/<cluster-name>/flux-system/gotk-sync.yaml`.
-    *   Check permissions on the SSH key files if issues arise during local `flux bootstrap` execution.
--   **Kustomize Build Errors**: Run `kustomize build <path-to-kustomization-dir>` locally to validate Kustomize configurations before committing.
--   **Helm Errors**: Use `flux get hr <helmrelease-name> -n <namespace>` and `kubectl describe hr <helmrelease-name> -n <namespace>` to see Helm-specific errors. Check Helm values and chart versions in your `HelmRelease` manifests.
+-   **ImagePullBackOff/ErrImagePull**: Check ACR permissions, Workload Identity setup (if used for ACR), image name/tag correctness.
+-   **Kustomization Reconciliation Failure**: `flux get kustomizations`, `flux logs ...`. Check for YAML syntax errors, incorrect paths in Kustomizations, missing resources, or issues in the base/overlay manifests.
+-   **HelmRelease Failure**: `flux get helmreleases`, `kubectl describe helmrelease ...`. Check Helm chart values, repository URL, chart version. Look at logs of `helm-controller`.
+-   **GitRepository Fetch Failure**: `flux get sources git`. Check `spec.url` and `spec.secretRef` in the `GitRepository` CRD. Verify the SSH private key in the secret is correct and the public key is in GitHub with read access. Test SSH connectivity from a pod if needed.
+-   **Webhook Issues (if configured)**: Check GitHub webhook delivery logs. Check `notification-controller` logs in `flux-system`.
 
-## Security Considerations Review
+## Security Best Practices
 
-Refer to the [Architecture Guide](./phase2-fluxcd-architecture.md) for detailed security considerations, including:
--   Principle of Least Privilege for the SSH Deploy Key.
--   Secure management of the GitLab PAT for bootstrap.
--   RBAC for Flux components and secrets.
--   Secrets management strategies for applications. 
+-   **Least Privilege**: The SSH Deploy Key used by Flux should have read-only access to the GitHub monorepo unless features like image update automation (which require write access) are used.
+-   **GitHub PAT Security (for bootstrap CLI)**: If a PAT is used for the `flux bootstrap github` command, it should be stored securely, have minimum necessary scopes (e.g., `repo`), and ideally be short-lived or used in a controlled CI/CD environment for bootstrap.
+-   **Kustomize Overlays for Secrets**: Do not commit raw secrets to Git. Use a secrets management solution like External Secrets Operator (ESO) to fetch secrets from Azure Key Vault. Your Kustomize overlays might define `ExternalSecret` resources.
+-   **Network Policies**: Implement NetworkPolicies to restrict traffic between pods.
+-   **Regular Audits**: Regularly review Flux configurations and RBAC permissions.
+-   **Keep Flux Updated**: Stay current with FluxCD releases for security patches and new features. 

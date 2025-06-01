@@ -53,7 +53,7 @@ This document defines the requirements for a secure, scalable, modular AI platfo
 - Support for app rollback and promotion
 
 ### CI/CD
-- Automate test, build, and deploy with GitLab CI
+- Automate test, build, and deploy with GitHub Actions
 - Run vulnerability scans (Trivy)
 - Validate Terraform changes before merge
 - Promote applications across environments
@@ -93,7 +93,7 @@ This document defines the requirements for a secure, scalable, modular AI platfo
 - **ML Engineer**: Deploys and tests models, uses GPU workloads
 - **App Developer**: Builds UIs and APIs consuming AI services
 - **Security & Compliance**: Audits secrets, enforces policy
-- **DevOps Engineer**: Manages CI/CD and GitLab integrations
+- **DevOps Engineer**: Manages CI/CD and GitHub integrations
 
 ---
 
@@ -102,7 +102,7 @@ This document defines the requirements for a secure, scalable, modular AI platfo
 - Phase 1: Core Infrastructure – AKS, ACR, Networking
 - Phase 2: GitOps & Secrets – FluxCD, ESO, Key Vault
 - Phase 3: GPU & Model Serving – vLLM, GPU plugins
-- Phase 4: DevOps CI/CD – GitLab pipelines, automation
+- Phase 4: DevOps CI/CD – GitHub Actions workflows, automation
 - Phase 5: AI Tools – MLflow, Qdrant, Data Lake
 - Phase 6: Observability & Security – Dashboards, Scanning
 
@@ -116,4 +116,38 @@ This document defines the requirements for a secure, scalable, modular AI platfo
 - CI/CD runs for every commit with test and security checks
 - GPU workloads monitored and optimized
 - Secrets are never exposed in plaintext or stored in code
+
+## Key Features
+
+- AKS cluster (system/user node pools)
+- Azure CNI networking
+- Azure Policy integration
+- Microsoft Defender for Containers
+- Azure Key Vault integration
+- Log Analytics integration
+- Auto-scaling for node pools
+- RBAC enabled
+- GitOps with FluxCD (GitHub)
+- Automated CI/CD with GitHub Actions
+
+## User Stories
+
+### DevOps Engineer
+
+- **As a DevOps Engineer, I want to:**
+  - Manage infrastructure as code using Terraform
+  - Automate test, build, and deploy with GitHub Actions
+  - Monitor platform health and performance
+  - Implement GitOps for Kubernetes deployments
+  - Secure the platform with Azure security services
+
+## Implementation Phases
+
+- Phase 1: Core Azure Infrastructure – AKS, ACR, Key Vault
+- Phase 2: GitOps & Platform Bootstrap – FluxCD, NGINX, cert-manager
+- Phase 3: Observability & Logging – Prometheus, Grafana, Loki
+- Phase 4: DevOps CI/CD – GitHub Actions workflows, automation
+- Phase 5: GPU Workloads & Advanced Services – GPU nodes, AI/ML tools
+
+## Success Metrics
 

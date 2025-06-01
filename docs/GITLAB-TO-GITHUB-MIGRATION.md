@@ -2,540 +2,503 @@
 
 ## Overview
 
-This document provides a comprehensive guide for migrating the platform's GitOps infrastructure from GitLab to GitHub. The migration involves updating CI/CD pipelines, authentication mechanisms, and platform-specific configurations while preserving all Kubernetes manifests and infrastructure code.
-
----
-
-## 📊 Migration Complexity Assessment
-
-### ✅ **Zero Effort (Platform Agnostic)**
-- Kubernetes manifests (YAML files)
-- Helm charts and values
-- Kustomize base configurations and overlays
-- Terraform infrastructure code
-- Docker images and container configurations
-
-### 🔶 **Low Effort (30 minutes - 2 hours)**
-- FluxCD GitRepository resource URLs
-- Deploy key configuration
-- Webhook endpoint updates
-- Environment variable updates
-
-### 🔶 **Medium Effort (2-6 hours)**
-- CI/CD pipeline syntax conversion (GitLab CI to GitHub Actions)
-- Authentication and secrets management
-- API integration scripts
-- Access token management
-
-### 🔴 **High Effort (4-8 hours)**
-- Documentation updates
-- Troubleshooting guides
-- Setup and operational procedures
-- Training materials
-
----
-
-## 🎯 Migration Timeline
-
-| Phase | Duration | Components | Effort Level |
-|-------|----------|------------|--------------|
-| **Phase 1** | 30 minutes | FluxCD Configuration | Low |
-| **Phase 2** | 2-4 hours | CI/CD Pipelines (GitHub Actions setup) | Medium |
-| **Phase 3** | 1-2 hours | Authentication Setup (GitHub Deploy Keys) | Medium |
-| **Phase 4** | 4-6 hours | Documentation Update | High |
-| **Phase 5** | 1-2 hours | Testing & Validation | Medium |
-| **Total** | **8-15 hours** | Complete Migration | Mixed |
+This document provides a step-by-step guide for migrating the platform's GitOps infrastructure from a previous Git provider (e.g., GitLab) to GitHub. The migration involves updating CI/CD pipelines, authentication mechanisms, and platform-specific configurations while preserving all Kubernetes manifests and infrastructure code.
 
 ---
 
 ## 🔧 Step-by-Step Migration Process
 
+**Prerequisites:**
+*   Access to your Kubernetes cluster (`kubectl` configured).
+*   `flux` CLI installed.
+*   `git` CLI installed.
+*   `ssh-keygen` utility (usually available by default).
+*   `base64` utility.
+*   Administrative access to your new GitHub repository (for deploy keys, webhooks, secrets).
+*   Credentials for your cloud provider (e.g., Azure Service Principal for GitHub Actions).
+*   Your complete codebase (including all branches and tags) from the old Git repository cloned locally.
+
+**Placeholders used in this guide:**
+*   `YOUR_GITHUB_ORG`: Your GitHub organization or username.
+*   `YOUR_REPO_NAME`: Your new GitHub repository name.
+*   `YOUR_CLUSTER_CONTEXT_NAME`: Your `kubectl` context name for the target cluster.
+*   `YOUR_FLUX_NAMESPACE`: Typically `flux-system`.
+*   `YOUR_BRANCH_NAME`: The default branch, usually `main` or `master`.
+*   `YOUR_GITOPS_REPO_SECRET_NAME`: Name for the K8s secret holding deploy key, e.g., `github-deploy-key`.
+*   `YOUR_PRIVATE_SSH_KEY_PATH`: Path to your private SSH key file, e.g., `./github-deploy-key`.
+*   `YOUR_AZURE_SP_CREDENTIALS_JSON`: JSON output of Azure SP credentials for GitHub Actions.
+*   `YOUR_AKS_RESOURCE_GROUP`: Azure Resource Group of your AKS cluster.
+*   `YOUR_AKS_CLUSTER_NAME`: Name of your AKS cluster.
+*   `YOUR_WEBHOOK_SECRET_K8S_NAME`: K8s secret name for webhook, e.g., `github-webhook-secret`.
+*   `YOUR_WEBHOOK_RECEIVER_NAME`: Flux Receiver name, e.g., `github-webhook-receiver`.
+*   `YOUR_FLUX_INGRESS_URL_OR_IP`: Publicly accessible URL/IP for your Flux notification controller.
+
 ### Phase 1: FluxCD Configuration Updates
 
-#### 1.1 Update GitRepository Resources
-**Old GitLab Configuration Example (for reference):**
+#### 1.1. Prepare Your GitHub Repository
+1.  Create a new **private** repository on GitHub: `https://github.com/YOUR_GITHUB_ORG/YOUR_REPO_NAME`.
+2.  Clone your existing GitLab repository locally (if you haven't already):
+    ```bash
+    git clone --mirror git@gitlab.com:OLD_ORG/OLD_REPO.git old-repo-mirror
+    cd old-repo-mirror
+    ```
+3.  Set the new GitHub remote:
+    ```bash
+    git remote set-url origin https://github.com/YOUR_GITHUB_ORG/YOUR_REPO_NAME.git
+    # Or for SSH:
+    # git remote set-url origin git@github.com:YOUR_GITHUB_ORG/YOUR_REPO_NAME.git
+    ```
+4.  Push all branches and tags to GitHub:
+    ```bash
+    git push --mirror
+    cd ..
+    rm -rf old-repo-mirror # Clean up mirror clone
+    ```
+5.  Clone your new GitHub repository to a fresh working directory.
+    ```bash
+    git clone git@github.com:YOUR_GITHUB_ORG/YOUR_REPO_NAME.git
+    cd YOUR_REPO_NAME
+    ```
+
+#### 1.2. Update FluxCD `GitRepository` Resource
+Create or update your FluxCD `GitRepository` manifest file (e.g., `flux-gitrepository.yaml`) with the new GitHub repository details.
+
+**Example `GitRepository` manifest (`flux-gitrepository.yaml`):**
 ```yaml
-apiVersion: source.toolkit.fluxcd.io/v1beta2
+apiVersion: source.toolkit.fluxcd.io/v1beta2 # Check for the latest stable API version
 kind: GitRepository
 metadata:
-  name: platform-core-gitops
-  namespace: flux-system
+  name: platform-core-gitops # Or your desired name
+  namespace: YOUR_FLUX_NAMESPACE # Typically flux-system
 spec:
   interval: 1m
-  url: https://gitlab.com/your-org/platform-core # Old GitLab URL
+  url: ssh://git@github.com/YOUR_GITHUB_ORG/YOUR_REPO_NAME.git # SSH URL for GitHub
   ref:
-    branch: main
+    branch: YOUR_BRANCH_NAME # e.g., main
   secretRef:
-    name: gitlab-deploy-key # Old secret name
+    name: YOUR_GITOPS_REPO_SECRET_NAME # e.g., github-deploy-key
+  # For GitHub Enterprise or self-hosted, you might need:
+  # ssh:
+  #   caFile: <path-to-ca-bundle-if-using-custom-ca>
+  #   known_hosts: <your-github-enterprise-known-hosts-entry>
 ```
-
-**New GitHub Configuration:**
-```yaml
-apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: GitRepository
-metadata:
-  name: platform-core-gitops # Or your preferred name
-  namespace: flux-system
-spec:
-  interval: 1m
-  url: https://github.com/your-github-org/your-repo-name # New GitHub URL
-  ref:
-    branch: main # Or your default branch
-  secretRef:
-    name: github-deploy-key # New secret name for GitHub deploy key
-```
-
-#### 1.2 Update Deploy Key Secret
-**Old GitLab Secret Example (for reference):**
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: gitlab-deploy-key
-  namespace: flux-system
-type: Opaque
-data:
-  identity: <base64-encoded-private-key>
-  known_hosts: <base64-encoded-gitlab-host-key>
-```
-
-**New GitHub Secret:**
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: github-deploy-key # Ensure this matches GitRepository.spec.secretRef.name
-  namespace: flux-system
-type: Opaque
-data:
-  identity: <base64-encoded-private-ssh-key-for-github>
-  known_hosts: <base64-encoded-github-host-key> # (e.g., github.com ssh-rsa AAAAB3NzaC1yc2E...)
-```
-
-**To get GitHub's known_hosts entry:**
+**Apply the manifest to your cluster:**
 ```bash
-ssh-keyscan github.com
-# Copy the relevant RSA or ED25519 key line, then base64 encode it.
-# Example: echo "github.com ssh-rsa AAAAB3NzaC1yc2E..." | base64
+kubectl apply -f flux-gitrepository.yaml --context YOUR_CLUSTER_CONTEXT_NAME
 ```
 
-### Phase 2: CI/CD Pipeline Migration (GitLab CI to GitHub Actions)
+#### 1.3. Create GitHub Deploy Key and Kubernetes Secret
 
-This section assumes you are moving from GitLab CI to GitHub Actions. The example below shows a typical GitHub Actions workflow.
+1.  **Generate a new SSH key pair:**
+    ```bash
+    ssh-keygen -t ed25519 -C "fluxcd-github-deploy@YOUR_REPO_NAME" -f YOUR_PRIVATE_SSH_KEY_PATH # e.g., ./github-deploy-key
+    # Do not set a passphrase for this key.
+    ```
+    This creates `YOUR_PRIVATE_SSH_KEY_PATH` (private key) and `YOUR_PRIVATE_SSH_KEY_PATH.pub` (public key).
 
-**GitHub Actions (`.github/workflows/gitops.yml`):**
+2.  **Add the public key to your GitHub repository:**
+    *   Go to `https://github.com/YOUR_GITHUB_ORG/YOUR_REPO_NAME/settings/keys`.
+    *   Click "Add deploy key".
+    *   **Title**: `fluxcd-readonly` (or similar).
+    *   **Key**: Paste the content of `YOUR_PRIVATE_SSH_KEY_PATH.pub`.
+    *   **Allow write access**: Leave this unchecked (FluxCD typically only needs read access).
+    *   Click "Add key".
+
+3.  **Get GitHub's SSH known hosts entry:**
+    ```bash
+    ssh-keyscan github.com > github_known_hosts
+    # Review github_known_hosts to ensure it looks correct, then get its base64 encoded value:
+    # For Linux:
+    KNOWN_HOSTS_B64=$(cat github_known_hosts | base64 -w0)
+    # For macOS:
+    # KNOWN_HOSTS_B64=$(cat github_known_hosts | base64)
+    echo "Base64 encoded known_hosts: $KNOWN_HOSTS_B64"
+    rm github_known_hosts # Clean up
+    ```
+
+4.  **Create the Kubernetes secret for FluxCD:**
+    This secret will store the private SSH key and GitHub's known hosts.
+    ```bash
+    kubectl create secret generic YOUR_GITOPS_REPO_SECRET_NAME \
+      --namespace=YOUR_FLUX_NAMESPACE \
+      --from-file=identity=YOUR_PRIVATE_SSH_KEY_PATH \
+      --from-file=known_hosts=<(echo "$KNOWN_HOSTS_B64" | base64 -d) \
+      --dry-run=client -o yaml | kubectl apply -f - --context YOUR_CLUSTER_CONTEXT_NAME
+    ```
+    *Ensure `YOUR_GITOPS_REPO_SECRET_NAME` matches `spec.secretRef.name` in your `GitRepository` manifest.*
+    *Replace `YOUR_PRIVATE_SSH_KEY_PATH` with the actual path to your private key (e.g., `./github-deploy-key`).*
+
+### Phase 2: CI/CD Pipeline Migration (Example: GitHub Actions)
+
+This section provides an example of a GitHub Actions workflow. You will need to translate your existing CI/CD logic from GitLab CI (or other systems) to GitHub Actions.
+
+**Create `.github/workflows/gitops-cd.yml` in your repository:**
 ```yaml
 name: GitOps CD Workflow
 
 on:
   pull_request:
-    branches: [main] # Or your protected branches
-    paths:
-      - 'flux-config/**' # Adjust paths as needed
+    branches: [ YOUR_BRANCH_NAME ] # e.g., main
+    paths: # Adjust paths to trigger workflow only on relevant changes
+      - 'flux-config/**'
+      - 'terraform/**'
   push:
-    branches: [main] # Or your protected branches
+    branches: [ YOUR_BRANCH_NAME ] # e.g., main
     paths:
-      - 'flux-config/**' # Adjust paths as needed
+      - 'flux-config/**'
+      - 'terraform/**'
 
 jobs:
-  validate-manifests:
+  validate-code: # Example job for PRs
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    #strategy: # Optional: if you have multiple envs to validate against
-    #  matrix:
-    #    environment: [dev, stg, prd] # Example environments
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Add steps for linting, manifest validation (e.g., kubeval, kustomize build)
+      # Example: Validate Kustomization for Flux
       - name: Setup Flux CLI
-        uses: fluxcd/flux2/action@main
+        uses: fluxcd/flux2/action@main # Ensures flux CLI is available
 
-      - name: Validate Kustomization
+      - name: Validate Flux Kustomization (example)
+        # This command assumes your Flux Kustomizations are in a certain path.
+        # Adjust the path to your cluster's main Kustomization.
+        # You might need KUBECONFIG if diffing against a live cluster (not recommended for PR validation)
         run: |
-          # Example for a single cluster, adjust path as needed
-          flux diff kustomization flux-system --path ./flux-config/clusters/platform-core-dev-aks/flux-system
-          # If using overlays for multiple environments:
-          # flux diff kustomization flux-system --path ./flux-config/clusters/${{ matrix.environment }}/flux-system
-        # env:
-          # KUBECONFIG_FILE: ${{ secrets.KUBECONFIG_DEV }} # If diffing against a live cluster
+          flux diff kustomization flux-system --path ./flux-config/clusters/YOUR_CLUSTER_NAME/flux-system --context YOUR_CLUSTER_CONTEXT_NAME
+          # Replace YOUR_CLUSTER_NAME with the actual name (e.g., platform-core-dev-aks)
 
-  deploy-changes:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Or your deployment branch
+  deploy-changes: # Example job for pushes to main (post-merge)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/YOUR_BRANCH_NAME'
     runs-on: ubuntu-latest
-    needs: [validate-manifests] # Optional: ensure validation passes first on PRs to main
-    #strategy: # Optional: if you have multiple envs to deploy to based on paths/logic
-    #  matrix:
-    #    environment: [dev, stg, prd]
-    # environment: ${{ matrix.environment }} # For GitHub Environments
+    # needs: [validate-code] # Optional: ensure validation job passes first
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Flux CLI
-        uses: fluxcd/flux2/action@main
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3 # Example for Azure, adjust for your cloud
-
+      # Example: For Azure deployments
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS_DEV }} # Use appropriate secret per environment
+          creds: ${{ secrets.AZURE_CREDENTIALS }} # Store your Azure SP JSON credentials as a GitHub secret
 
-      - name: Get AKS credentials
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Get AKS credentials (example)
         run: |
-          # Adjust for your AKS naming and resource group
-          az aks get-credentials \\
-            --resource-group rg-aks-dev-uaenorth-001 \\
-            --name aks-platform-dev-uaenorth-001
-        # env:
-          # CLUSTER_NAME: aks-platform-${{ matrix.environment }}-uaenorth-001
-          # RESOURCE_GROUP: rg-aks-${{ matrix.environment }}-uaenorth-001
+          az aks get-credentials \
+            --resource-group YOUR_AKS_RESOURCE_GROUP \
+            --name YOUR_AKS_CLUSTER_NAME
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Reconcile Flux Kustomization(s)
-        run: |
-          # Reconcile the main Kustomization that points to your cluster's config
-          flux reconcile kustomization flux-system --with-source
-          # Or specific Kustomizations if needed
-          # flux reconcile kustomization apps --namespace my-app-ns --with-source
+      # Flux typically handles reconciliation automatically based on GitRepository updates.
+      # However, you might want to explicitly trigger a reconciliation or perform other actions.
+      - name: Trigger Flux Reconcile (Optional - if needed beyond Git polling)
+        uses: fluxcd/flux2/action@main
+        with:
+          # Example: Reconcile a specific Kustomization. Flux polls automatically, so this is often not needed.
+          # command: reconcile kustomization flux-system --with-source --namespace YOUR_FLUX_NAMESPACE
+          # Ensure flux CLI is configured to talk to your cluster (KUBECONFIG)
+          # Note: Direct reconciliation via CI might conflict with Flux's own Git polling.
+          # It's often better to let Flux pick up changes from Git automatically.
+          command: |
+            echo "Flux will reconcile automatically from Git. Triggering an explicit sync if necessary."
+            flux reconcile source git platform-core-gitops --namespace YOUR_FLUX_NAMESPACE # Replace platform-core-gitops if name is different
+            flux reconcile kustomization flux-system --namespace YOUR_FLUX_NAMESPACE --with-source # Example, adjust to your main kustomization
 ```
-*Ensure your GitHub Actions have the necessary permissions to access secrets (like `AZURE_CREDENTIALS_DEV`) and potentially to assume roles if you're using OIDC.*
+**Note on GitHub Actions Secrets:**
+*   Go to your GitHub repository → Settings → Secrets and variables → Actions.
+*   Add `AZURE_CREDENTIALS` (or similar) with the JSON credentials of an Azure Service Principal that has permissions to your AKS cluster and other Azure resources managed by Terraform/Flux.
 
-### Phase 3: Authentication and Secrets Migration
+### Phase 3: Authentication and Secrets Migration (CI/CD Related)
 
-#### 3.1 GitHub Deploy Keys Setup
-1.  **Generate a new SSH key pair** (if you don't have one for GitHub):
+This phase focuses on secrets needed by your CI/CD system (GitHub Actions). FluxCD's own authentication to GitHub was set up in Phase 1.
+
+#### 3.1. Configure GitHub Secrets for CI/CD
+As shown in the GitHub Actions example:
+1.  In your GitHub repository, go to `Settings` > `Secrets and variables` > `Actions`.
+2.  Click `New repository secret`.
+3.  Add secrets required by your workflows. For example:
+    *   `AZURE_CREDENTIALS`: JSON object for Azure Service Principal.
+        ```json
+        {
+          "clientId": "YOUR_SERVICE_PRINCIPAL_APP_ID",
+          "clientSecret": "YOUR_SERVICE_PRINCIPAL_PASSWORD",
+          "subscriptionId": "YOUR_AZURE_SUBSCRIPTION_ID",
+          "tenantId": "YOUR_AZURE_TENANT_ID"
+        }
+        ```
+    *   Any other tokens or keys your CI/CD jobs need (e.g., SonarQube token, Docker Hub credentials).
+
+#### 3.2. Service Principal Permissions (Example for Azure)
+Ensure the Azure Service Principal used in `AZURE_CREDENTIALS` has sufficient permissions.
+1.  **Create or Identify Service Principal:**
+    If you need to create one:
     ```bash
-    ssh-keygen -t ed25519 -C "fluxcd-github-deploy-key" -f github-deploy-key
+    az ad sp create-for-rbac --name "YourGitHubActionsSP" --role "Contributor" --scopes "/subscriptions/YOUR_AZURE_SUBSCRIPTION_ID" --sdk-auth
     ```
-    This creates `github-deploy-key` (private key) and `github-deploy-key.pub` (public key).
+    *(The output is the JSON for `AZURE_CREDENTIALS`. Restrict roles/scopes as much as possible).*
 
-2.  **Add public key to GitHub repository:**
-    *   Go to your GitHub repository → Settings → Deploy keys → Add deploy key.
-    *   Give it a title (e.g., "fluxcd").
-    *   Paste the content of `github-deploy-key.pub`.
-    *   **Do not check "Allow write access"** if FluxCD only needs to read the repository. FluxCD generally requires read-only access to the manifests repository. Write access is typically only needed if Flux is configured to commit changes back to Git (e.g., image updates), which is a more advanced setup.
-
-3.  **Create/Update the Kubernetes secret for FluxCD:**
-    Use the private key (`github-deploy-key`) and the GitHub known hosts entry.
+2.  **Assign AKS Cluster Access (if not covered by broad role like Contributor):**
+    Get your Service Principal's Object ID (or App ID for some role assignments):
     ```bash
-    kubectl create secret generic github-deploy-key \\
-      --from-file=identity=./path/to/your/github-deploy-key \\
-      --from-literal=known_hosts="$(ssh-keyscan github.com 2>/dev/null | grep \'ssh-rsa\' | head -n1)" \\
-      --namespace=flux-system --dry-run=client -o yaml | kubectl apply -f -
-    # Ensure the secret name 'github-deploy-key' matches what's in your GitRepository resource.
-    # Replace ./path/to/your/github-deploy-key with the actual path to your private key.
-    # You might want to refine the ssh-keyscan to be more specific if multiple key types are present.
+    # Using App ID (clientId from AZURE_CREDENTIALS)
+    SERVICE_PRINCIPAL_APP_ID="YOUR_SERVICE_PRINCIPAL_APP_ID"
+    # Or get ObjectID if needed:
+    # SERVICE_PRINCIPAL_OBJECT_ID=$(az ad sp show --id "${SERVICE_PRINCIPAL_APP_ID}" --query "id" -o tsv)
+
+    AKS_RESOURCE_ID=$(az aks show -g YOUR_AKS_RESOURCE_GROUP -n YOUR_AKS_CLUSTER_NAME --query "id" -o tsv)
+
+    # Assign a role like "Azure Kubernetes Service Cluster User Role" or "Azure Kubernetes Service RBAC Cluster Admin"
+    az role assignment create \
+      --assignee "$SERVICE_PRINCIPAL_APP_ID" \
+      --role "Azure Kubernetes Service Cluster User Role" \
+      --scope "$AKS_RESOURCE_ID"
     ```
 
-#### 3.2 GitHub Secrets Configuration for CI/CD (GitHub Actions)
-Store necessary secrets in your GitHub repository settings: Repository → Settings → Secrets and variables → Actions.
-**Required GitHub Repository Secrets (Examples):**
-```
-# For Azure Login in GitHub Actions
-AZURE_CREDENTIALS_DEV='{"clientId":"...","clientSecret":"...","subscriptionId":"...","tenantId":"..."}'
-AZURE_CREDENTIALS_STG='{...}'
-AZURE_CREDENTIALS_PRD='{...}'
+### Phase 4: Webhook Configuration (GitHub to FluxCD)
 
-# If Kustomize diffs or other operations need cluster access during PR validation:
-# KUBECONFIG_DEV: base64 encoded kubeconfig for dev
-# KUBECONFIG_STG: base64 encoded kubeconfig for stg
+This enables FluxCD to reconcile more quickly upon pushes to GitHub, rather than waiting for its polling interval.
 
-# Optional: Personal Access Token (PAT) if needed for specific GitHub API operations NOT covered by GITHUB_TOKEN
-# GITHUB_PAT: <your-github-pat-with-required-scopes>
-```
-*The `GITHUB_TOKEN` is automatically available to GitHub Actions and has permissions scoped to the repository.*
-
-#### 3.3 Service Principal Permissions (Example for Azure)
-If your CI/CD (GitHub Actions) interacts with your cloud provider (e.g., Azure to get AKS credentials), ensure the Service Principal used by `azure/login@v1` has the necessary permissions.
-Example: Assigning "Azure Kubernetes Service Cluster User Role" (or Admin, if needed by `kubectl` commands).
-```bash
-# Example: Get your Service Principal's Object ID (if using workload identity federation) or App ID
-# $SERVICE_PRINCIPAL_ID = $(az ad sp list --display-name "your-sp-name" --query "[0].id" -o tsv)
-# $AKS_RESOURCE_ID = $(az aks show -g MyResourceGroup -n MyAKSCluster --query "id" -o tsv)
-
-az role assignment create \\
-  --assignee $SERVICE_PRINCIPAL_ID \\
-  --role "Azure Kubernetes Service Cluster User Role" \\
-  --scope $AKS_RESOURCE_ID
-```
-
-### Phase 4: Webhook Configuration (GitHub)
-
-#### 4.1 Update FluxCD Webhook Receiver
-**Old GitLab Webhook Example (for reference):**
+#### 4.1. Create/Update FluxCD `Receiver` Manifest
+Create a `Receiver` manifest (e.g., `flux-receiver.yaml`):
 ```yaml
-apiVersion: notification.toolkit.fluxcd.io/v1beta1
+apiVersion: notification.toolkit.fluxcd.io/v1beta3 # Check for latest stable API
 kind: Receiver
 metadata:
-  name: gitlab-webhook
+  name: YOUR_WEBHOOK_RECEIVER_NAME # e.g., github-webhook-receiver
+  namespace: YOUR_FLUX_NAMESPACE   # Typically flux-system
 spec:
-  type: gitlab
-  # ...
-```
-
-**New GitHub Webhook Configuration:**
-```yaml
-apiVersion: notification.toolkit.fluxcd.io/v1beta2 # Use v1beta2 or later for notification.toolkit.fluxcd.io
-kind: Receiver
-metadata:
-  name: github-webhook-receiver # Or your preferred name
-  namespace: flux-system
-spec:
-  type: github # Change type to github
-  events: # Specify events, 'push' is common
+  type: github
+  events:
     - "ping"
     - "push"
   secretRef:
-    name: github-webhook-secret # Secret containing the webhook shared secret
+    name: YOUR_WEBHOOK_SECRET_K8S_NAME # e.g., github-webhook-secret
   resources:
     - kind: GitRepository
-      name: platform-core-gitops # Name of your GitRepository resource
+      name: platform-core-gitops # Must match the name of your GitRepository resource
 ```
-
-#### 4.2 Create Webhook Secret
-Create a secret that will be shared between GitHub and the FluxCD receiver.
+**Apply the manifest:**
 ```bash
-# Generate a random string for the secret
-WEBHOOK_SECRET=$(head -c 12 /dev/urandom | shasum -a 256 | cut -d \  -f1)
-echo $WEBHOOK_SECRET
-
-kubectl -n flux-system create secret generic github-webhook-secret --from-literal=token=$WEBHOOK_SECRET
+kubectl apply -f flux-receiver.yaml --context YOUR_CLUSTER_CONTEXT_NAME
 ```
 
-#### 4.3 GitHub Webhook Setup in Repository Settings
-1.  **Get the FluxCD Receiver URL:**
-    This depends on how your notification-controller is exposed. If it's port-forwarded or has an Ingress:
+#### 4.2. Create Kubernetes Secret for Webhook
+This secret is shared between GitHub and FluxCD's `Receiver`.
+```bash
+# Generate a random string for the webhook secret
+WEBHOOK_SHARED_SECRET=$(head -c 32 /dev/urandom | base64 -w0 | sed 's/[^a-zA-Z0-9]//g' | cut -c1-32)
+echo "Generated Webhook Shared Secret: $WEBHOOK_SHARED_SECRET" # Keep this value
+
+kubectl create secret generic YOUR_WEBHOOK_SECRET_K8S_NAME \
+  --namespace=YOUR_FLUX_NAMESPACE \
+  --from-literal=token="$WEBHOOK_SHARED_SECRET" \
+  --dry-run=client -o yaml | kubectl apply -f - --context YOUR_CLUSTER_CONTEXT_NAME
+```
+
+#### 4.3. Configure Webhook in GitHub Repository
+1.  **Expose Flux Notification Controller & Get URL:**
+    The Flux notification controller needs to be reachable from GitHub. This usually involves setting up an Ingress for `svc/notification-controller` in the `YOUR_FLUX_NAMESPACE`.
+    Once exposed, the typical webhook URL path is `/hook/YOUR_WEBHOOK_RECEIVER_NAME`.
+    Example: `https://YOUR_FLUX_INGRESS_URL_OR_IP/hook/YOUR_WEBHOOK_RECEIVER_NAME`
+
+    You can also get the expected path using `flux`:
     ```bash
-    # If using port-forward (for testing only)
-    # kubectl -n flux-system port-forward svc/notification-controller 8080:80
-    # URL would be http://localhost:8080/hook/sha256sum-of-your-token
-
-    # For an Ingress, it would be something like:
-    # https://your.ingress.host/github-webhook-receiver-path (path depends on Ingress config)
-    # The command from the docs to construct the URL:
-    flux get webhook github-webhook-receiver --namespace flux-system
+    flux get webhook YOUR_WEBHOOK_RECEIVER_NAME --namespace YOUR_FLUX_NAMESPACE
+    # This command shows the endpoint path, e.g. /hook/blahblah
     ```
-    Check the FluxCD documentation for the exact format of the webhook URL. It's typically `/hook/<receiver-name>`.
 
-2.  **Configure in GitHub Repository:**
-    *   Go to your GitHub repository → Settings → Webhooks → Add webhook.
-    *   **Payload URL**: The URL for your FluxCD notification-controller's receiver (e.g., `https://<your-flux-ingress>/<receiver-path>`).
+2.  **Add Webhook in GitHub:**
+    *   Go to `https://github.com/YOUR_GITHUB_ORG/YOUR_REPO_NAME/settings/hooks`.
+    *   Click "Add webhook".
+    *   **Payload URL**: Enter the full URL from the previous step (e.g., `https://YOUR_FLUX_INGRESS_URL_OR_IP/hook/YOUR_WEBHOOK_RECEIVER_NAME`).
     *   **Content type**: `application/json`.
-    *   **Secret**: Paste the `$WEBHOOK_SECRET` value you created.
-    *   **Which events would you like to trigger this webhook?**: Select "Just the push event" or customize as needed (e.g., "Let me select individual events" and choose Pushes).
+    *   **Secret**: Paste the `$WEBHOOK_SHARED_SECRET` value you generated.
+    *   **Which events would you like to trigger this webhook?**: Select "Just the push event". You can also add "Pings" for testing.
     *   Ensure "Active" is checked.
-    *   Click "Add webhook". You can then check the "Recent Deliveries" tab for that webhook in GitHub to see if test pings (like the initial one) are successful (200 OK).
+    *   Click "Add webhook".
+    *   Check the "Recent Deliveries" tab for the webhook in GitHub. A green checkmark indicates a successful delivery (e.g., for the initial Ping event).
 
 ### Phase 5: Scripts and Automation Updates
 
-#### 5.1 Update API Integration Scripts
-If you have any scripts that interact with the Git provider's API:
-**Old GitLab API calls (example):**
+#### 5.1. Update API Integration Scripts
+If you have custom scripts interacting with GitLab APIs, update them for GitHub APIs.
+**Old GitLab API call example:**
 ```bash
-# curl -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \\
-# "https://gitlab.com/api/v4/projects/$PROJECT_ID/repository/files/..."
+# curl --header "PRIVATE-TOKEN: YOUR_GITLAB_TOKEN" "https://gitlab.com/api/v4/projects/YOUR_PROJECT_ID/..."
+```
+**New GitHub API call example:**
+```bash
+# curl --header "Authorization: token YOUR_GITHUB_PAT" \
+#      --header "Accept: application/vnd.github.v3+json" \
+#      "https://api.github.com/repos/YOUR_GITHUB_ORG/YOUR_REPO_NAME/..."
 ```
 
-**New GitHub API equivalent:**
-```bash
-# curl -H "Authorization: token $GITHUB_PAT" \\ # Or use GITHUB_TOKEN if in GitHub Actions
-# -H "Accept: application/vnd.github.v3+json" \\
-# "https://api.github.com/repos/$OWNER/$REPO/contents/..."
-```
+#### 5.2. Update Local Git Remotes & Repository URLs in Code/Docs
+1.  **For all developers, update local Git remotes:**
+    In their local clones of the repository:
+    ```bash
+    # For HTTPS:
+    # git remote set-url origin https://github.com/YOUR_GITHUB_ORG/YOUR_REPO_NAME.git
+    # For SSH:
+    git remote set-url origin git@github.com:YOUR_GITHUB_ORG/YOUR_REPO_NAME.git
 
-#### 5.2 Update Repository URLs in Scripts and Local Configurations
-Search your codebase and local developer configurations for any hardcoded GitLab URLs and update them to the new GitHub repository URLs.
-```bash
-# Example: Find and replace repository URLs in various files
-# git grep -l 'gitlab.com/your-org' | xargs sed -i 's|gitlab.com/your-org|github.com/your-github-org|g'
-# Be careful with automated replacements; review changes.
-```
-This also applies to local `git remote` configurations for all developers.
-```bash
-git remote set-url origin https://github.com/your-github-org/your-repo-name.git
-# or for SSH:
-# git remote set-url origin git@github.com:your-github-org/your-repo-name.git
-```
+    git fetch origin
+    git branch -u origin/YOUR_BRANCH_NAME YOUR_BRANCH_NAME # To track the new upstream
+    ```
+
+2.  **Search and replace old Git provider URLs in your codebase and documentation:**
+    Use tools like `grep` and `sed`, or your IDE's search/replace functionality.
+    **Caution: Review changes carefully before committing.**
+    Example search (does not modify):
+    ```bash
+    git grep 'gitlab.com/OLD_ORG'
+    ```
 
 ---
 
 ## 🧪 Testing and Validation
 
-### Pre-Migration Checklist
-- [ ] Backup current GitLab repository (clone with all branches/tags).
-- [ ] Export/document all GitLab CI/CD variables and secrets.
-- [ ] Document current GitLab webhook configurations and FluxCD `Receiver` resources.
-- [ ] Create the new GitHub repository.
-- [ ] Push all code (branches, tags) from the GitLab backup to the new GitHub repository.
-- [ ] Plan a maintenance window if downtime is expected or for critical systems.
-
-### Migration Validation Steps
-
-#### 1. FluxCD Connectivity Test to GitHub
-Deploy the updated `GitRepository` resource pointing to GitHub and the new `github-deploy-key` secret.
+### 1. FluxCD Source Connectivity (GitHub)
 ```bash
-# Apply the updated GitRepository manifest
-kubectl apply -f your-gitrepository-github.yaml
-
-# Check status
-kubectl get gitrepository -n flux-system platform-core-gitops -o wide
-flux get sources git -n flux-system
-# Look for 'Fetched revision: main@<commit-sha>' and a recent 'Last fetch' time.
+# Check GitRepository status (ensure it reconciled successfully after secret update)
+kubectl get gitrepository -n YOUR_FLUX_NAMESPACE platform-core-gitops -o wide --context YOUR_CLUSTER_CONTEXT_NAME
+flux get sources git -n YOUR_FLUX_NAMESPACE --context YOUR_CLUSTER_CONTEXT_NAME
+# Expected: 'Fetched revision: YOUR_BRANCH_NAME@<commit-sha>' and a recent 'Last fetch' time.
 ```
 
-#### 2. CI/CD Pipeline Test (GitHub Actions)
-```bash
-# Create a test PR with a small, non-critical change in a path covered by your workflow triggers.
-git checkout -b test-github-actions
-# Make a small change, e.g., edit a Kustomization or add a comment
-git commit -am "Test GitHub Actions PR validation"
-git push origin test-github-actions
-# Open a Pull Request in GitHub.
-# Verify the 'validate-manifests' job (or equivalent) runs and passes.
+### 2. CI/CD Pipeline Execution (GitHub Actions)
+1.  **Pull Request Workflow:**
+    *   Create a new branch: `git checkout -b test-gh-actions-pr`
+    *   Make a small, non-critical change in a path covered by your PR workflow trigger (e.g., add a comment in a file within `flux-config/`).
+    *   Commit and push: `git add . && git commit -m "Test GitHub Actions PR" && git push origin test-gh-actions-pr`
+    *   Open a Pull Request on GitHub.
+    *   Verify the `validate-code` (or similar) job in your GitHub Actions workflow runs and passes.
+2.  **Push/Merge Workflow:**
+    *   Merge the test Pull Request into `YOUR_BRANCH_NAME`.
+    *   Verify the `deploy-changes` (or similar) job in your GitHub Actions workflow runs.
+    *   Check if any intended actions (e.g., `flux reconcile` if you added it, notifications) occurred.
 
-# Merge the PR (or push directly to 'main' if that's your trigger for deployment).
-# Verify the 'deploy-changes' job (or equivalent) runs and successfully reconciles Flux.
-```
-
-#### 3. Webhook Functionality Test (GitHub to FluxCD)
-After configuring the webhook in GitHub and the `Receiver` in FluxCD:
-1.  Make a push to a branch monitored by your `GitRepository` resource.
-2.  Check GitHub: Repository Settings → Webhooks → Select your webhook → Recent Deliveries. Look for a 200 OK status.
-3.  Check FluxCD notification-controller logs:
+### 3. Webhook Functionality (GitHub to FluxCD)
+1.  Make a new commit and push it to `YOUR_BRANCH_NAME` in your GitHub repository.
+2.  **Check GitHub:** Go to Repository Settings → Webhooks → Select your webhook → Recent Deliveries. Look for a 200 OK status for the push event.
+3.  **Check FluxCD notification-controller logs:**
     ```bash
-    kubectl logs -n flux-system deployment/notification-controller -f --tail=100
-    # Look for messages indicating it received and processed the event.
+    kubectl logs -n YOUR_FLUX_NAMESPACE deployment/notification-controller -f --tail=100 --context YOUR_CLUSTER_CONTEXT_NAME
+    # Look for messages indicating it received and processed the event for YOUR_WEBHOOK_RECEIVER_NAME.
     ```
-4.  Check FluxCD source-controller logs to see if it attempts to fetch due to the webhook:
+4.  **Check FluxCD source-controller logs:**
     ```bash
-    kubectl logs -n flux-system deployment/source-controller -f --tail=100
-    ```
-    (It might already be polling frequently, but webhooks should trigger a more immediate check).
-
-#### 4. End-to-End Deployment Test
-Make a meaningful (but safe) change to a manifest via a Git commit to the GitHub repository.
-Verify that:
-1.  Webhook triggers (or polling picks up the change).
-2.  FluxCD `GitRepository` source updates.
-3.  Relevant FluxCD `Kustomization` reconciles.
-4.  The change is reflected in the cluster (`kubectl get <resource> -o yaml`, etc.).
-    ```bash
-    flux get kustomizations -n flux-system --watch
+    kubectl logs -n YOUR_FLUX_NAMESPACE deployment/source-controller -f --tail=100 --context YOUR_CLUSTER_CONTEXT_NAME
+    # Look for messages indicating it's fetching new revisions from github.com/YOUR_GITHUB_ORG/YOUR_REPO_NAME.
     ```
 
-### Post-Migration Validation
-- [ ] All environments (dev, stg, prd) sync successfully from the GitHub repository.
-- [ ] GitHub Actions (CI/CD) run correctly for Pull Requests and pushes to relevant branches.
-- [ ] GitHub webhooks reliably trigger FluxCD reconciliations.
-- [ ] GitHub Deploy Keys for FluxCD have the correct (minimal) access.
-- [ ] All necessary secrets are securely configured in GitHub Actions secrets and Kubernetes (for FluxCD).
-- [ ] All relevant documentation is updated to reflect GitHub.
-- [ ] Team members are informed and understand the new workflow with GitHub.
+### 4. End-to-End Deployment Test
+1.  Make a safe, observable change to a Kubernetes manifest managed by Flux (e.g., change a ConfigMap value, update an image tag to a new valid version).
+2.  Commit and push the change to `YOUR_BRANCH_NAME` on GitHub.
+3.  Verify:
+    *   Webhook triggers (or polling picks up the change quickly).
+    *   FluxCD `GitRepository` source updates: `flux get sources git -n YOUR_FLUX_NAMESPACE --context YOUR_CLUSTER_CONTEXT_NAME`
+    *   Relevant FluxCD `Kustomization` reconciles: `flux get kustomizations -n YOUR_FLUX_NAMESPACE --watch --context YOUR_CLUSTER_CONTEXT_NAME`
+    *   The change is reflected in the cluster (e.g., `kubectl describe configmap ...`, `kubectl get deployment ... -o yaml`).
 
 ---
 
 ## 🚨 Rollback Plan
 
-If critical issues arise, you might need to revert FluxCD to pull from the old GitLab repository.
+If critical issues arise, revert FluxCD to pull from the old Git repository.
 
-### Emergency Rollback Steps (FluxCD pointing back to GitLab)
-1.  **Revert `GitRepository` resource:**
-    Apply the manifest for your `GitRepository` that points to the GitLab URL and uses the `gitlab-deploy-key` secret.
+### Emergency Rollback Steps
+1.  **Revert FluxCD `GitRepository` Resource:**
+    Apply the manifest for your `GitRepository` that points to the old GitLab URL and uses the old GitLab deploy key secret.
+    Example:
     ```bash
-    # Example: kubectl apply -f old-gitlab-gitrepository.yaml
-    # Or patch existing:
-    kubectl patch gitrepository platform-core-gitops -n flux-system \\
-      --type='json' -p='[{"op": "replace", "path": "/spec/url", "value":"https://gitlab.com/your-org/platform-core"},{"op": "replace", "path": "/spec/secretRef/name", "value":"gitlab-deploy-key"}]'
+    # If you have the old manifest file (e.g., old-gitlab-gitrepository.yaml):
+    # kubectl apply -f old-gitlab-gitrepository.yaml --context YOUR_CLUSTER_CONTEXT_NAME
+
+    # Or patch the existing one (ensure you have the correct old URL and secret name):
+    kubectl patch gitrepository platform-core-gitops -n YOUR_FLUX_NAMESPACE \
+      --context YOUR_CLUSTER_CONTEXT_NAME \
+      --type='json' -p='[{"op": "replace", "path": "/spec/url", "value":"OLD_GITLAB_SSH_URL"}, {"op": "replace", "path": "/spec/secretRef/name", "value":"OLD_GITLAB_DEPLOY_SECRET_NAME"}]'
     ```
 
-2.  **Ensure GitLab deploy key secret is active:**
+2.  **Ensure Old GitLab Deploy Key Secret is Active:**
     If you deleted or changed it, reapply the Kubernetes secret for the GitLab deploy key.
     ```bash
-    # kubectl apply -f backup/gitlab-deploy-key-secret.yaml
+    # kubectl apply -f backup/gitlab-deploy-key-secret.yaml --context YOUR_CLUSTER_CONTEXT_NAME
     ```
 
-3.  **Revert webhook `Receiver` (if changed):**
-    Apply the manifest for your FluxCD `Receiver` that is configured for GitLab.
+3.  **Revert FluxCD `Receiver` (if changed for GitHub):**
+    Delete the GitHub `Receiver` and reapply the manifest for your FluxCD `Receiver` that was configured for GitLab.
     ```bash
-    # kubectl apply -f backup/gitlab-webhook-receiver.yaml
+    # kubectl delete -f flux-receiver.yaml --context YOUR_CLUSTER_CONTEXT_NAME
+    # kubectl apply -f backup/gitlab-webhook-receiver.yaml --context YOUR_CLUSTER_CONTEXT_NAME
     ```
-    And ensure webhooks are re-enabled/pointed correctly in GitLab settings if they were disabled.
+    Also, ensure webhooks are re-enabled/correctly pointed in GitLab settings if they were disabled.
 
-4.  **Pause or Disable GitHub Actions Workflows** to prevent them from running.
-5.  **Re-enable GitLab CI/CD pipelines** if they were disabled.
+4.  **Pause or Disable GitHub Actions Workflows.**
+5.  **Re-enable old CI/CD pipelines** (e.g., GitLab CI/CD) if they were disabled.
 
 ### Rollback Validation
-- [ ] FluxCD successfully syncs from the GitLab repository.
-- [ ] GitLab CI/CD pipelines (if re-enabled) function as before.
-- [ ] GitLab webhooks (if re-enabled) work correctly.
-- [ ] All environments are stable and reflect the state from the GitLab repository.
+*   FluxCD successfully syncs from the old GitLab repository.
+*   Old CI/CD pipelines (if re-enabled) function as before.
+*   Old webhooks (if re-enabled) work correctly.
+*   All environments are stable and reflect the state from the old GitLab repository.
 
 ---
 
 ## 📚 Documentation Updates Required
 
-### Files to Update (Examples - adjust to your project structure)
-- [ ] **Project `README.md`**: Update repository URLs, setup instructions, contribution guidelines.
-- [ ] **`docs/phase2-fluxcd-operational-guide.md`**: Replace all GitLab-specific instructions, commands, and examples with GitHub equivalents.
-- [ ] **`docs/phase2-fluxcd-bootstrap-guide.md`**: Update `flux bootstrap` commands and any GitLab-specific setup steps.
-- [ ] **`docs/phase1-terraform-execution-guide.md`**: Update any CI/CD references or repository links.
-- [ ] **Terraform Module READMEs** (e.g., `terraform/modules/aks/README.md`): Update any example repository URLs or CI/CD mentions.
-- [ ] **Troubleshooting guides**: Add GitHub-specific issues and solutions.
-- [ ] **`flux-config/README.md`**: Update bootstrap commands and repo references.
+### Files to Update
+(Adjust this list based on your project structure)
+*   **Project `README.md`**: Update repository URLs, setup instructions, contribution guidelines.
+*   **`docs/phase2-fluxcd-operational-guide.md`**: Replace all old Git provider instructions with GitHub equivalents.
+*   **`docs/phase2-fluxcd-bootstrap-guide.md`**: Update `flux bootstrap github` commands and any old setup steps.
+*   **`docs/phase1-terraform-execution-guide.md`**: Update any CI/CD references or repository links.
+*   **Terraform Module READMEs** (e.g., `terraform/modules/aks/README.md`): Update any example repository URLs or CI/CD mentions.
+*   **Troubleshooting guides**: Add GitHub-specific issues and solutions.
+*   **`flux-config/README.md`**: Update bootstrap commands and repo references to `flux bootstrap github`.
 
 ### New Documentation to Create (Consider if needed)
-- [ ] `docs/github-actions-ci-cd.md`: Detailed guide on the new GitHub Actions CI/CD pipelines.
-- [ ] `docs/github-repository-setup.md`: Specifics on setting up GitHub (branch protections, deploy keys, webhooks for this project).
+*   `docs/github-actions-ci-cd.md`: Detailed guide on the new GitHub Actions CI/CD pipelines.
+*   `docs/github-repository-setup.md`: Specifics on setting up GitHub for this project (branch protections, advanced deploy key usage, webhook details).
 
 ---
 
-## 💡 Best Practices for Future-Proofing
+## 💡 Best Practices for Future-Proofing (Git Provider Agnostic where possible)
 
-### 1. Platform-Agnostic Design Patterns in FluxCD
-Where possible, use variables or indirection for platform-specific values, though FluxCD CRDs are inherently tied to Git URLs. The main benefit here is in scripts or external tooling.
-```yaml
-# FluxCD GitRepository example - URL is usually explicit
-apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: GitRepository
-metadata:
-  name: platform-core-gitops
-spec:
-  url: https://github.com/your-org/platform-core # This is platform-specific
-  secretRef:
-    name: git-deploy-key # Could be a generic name, with the secret content being platform-specific
-```
-
-### 2. Modular CI/CD Structure
-Keep CI/CD pipeline definitions (`.github/workflows/`) separate from actual scripts they call.
+### 1. Modular CI/CD Structure
+Keep CI/CD pipeline definitions (e.g., `.github/workflows/`) separate from actual scripts they call.
 ```
 .github/
-  workflows/
-    ci.yml
-    cd.yml
+  workflows/        # GitHub Actions specific
+    ci-cd.yml
 scripts/
-  ci/
+  common/           # Reusable scripts
     validate-manifests.sh
-    run-tests.sh
-  cd/
-    deploy-to-env.sh
-    notify.sh
+    deploy-app.sh
 ```
-The `.yml` files in `.github/workflows/` would call these scripts. This makes scripts more reusable if you ever switch CI systems again (though GitHub Actions is quite common).
+The `.yml` files in `.github/workflows/` would call scripts from `scripts/common/`. This makes the core logic more portable.
 
-### 3. Abstract Authentication in Scripts
-If you have scripts that need to interact with Git provider APIs outside of built-in CI/CD mechanisms:
+### 2. Abstract Authentication in Scripts (if custom scripts are used)
+If you have custom scripts that interact with Git provider APIs outside of built-in CI/CD mechanisms:
 ```bash
 # Example script snippet
+GIT_PROVIDER="github" # or make this an environment variable
+
 if [[ "$GIT_PROVIDER" == "github" ]]; then
-  API_TOKEN="$GITHUB_TOKEN_FOR_SCRIPT"
+  API_TOKEN="$YOUR_GITHUB_PAT_FOR_SCRIPT" # From GitHub Actions secrets or env
   API_BASE_URL="https://api.github.com"
-  # GitHub specific commands
-elif [[ "$GIT_PROVIDER" == "gitlab" ]]; then # For historical reference or other projects
-  API_TOKEN="$GITLAB_TOKEN_FOR_SCRIPT"
+  # GitHub specific API calls
+elif [[ "$GIT_PROVIDER" == "gitlab" ]]; then # For reference
+  API_TOKEN="$YOUR_GITLAB_PAT_FOR_SCRIPT"
   API_BASE_URL="https://gitlab.com/api/v4"
-  # GitLab specific commands
+  # GitLab specific API calls
 fi
 # Generic curl using $API_TOKEN and $API_BASE_URL
 ```
@@ -544,60 +507,63 @@ fi
 
 ## 📞 Support and Resources
 
-### Internal Support Contacts (Update with your team's contacts)
-- Platform Team: `platform-team@example.com`
-- DevOps Team: `devops@example.com`
-- Security Team: `security@example.com`
+### Internal Support Contacts
+(Update with your team's actual contacts or channels)
+*   Platform Team: `#platform-support` or `your-platform-team@example.com`
+*   DevOps Team: `#devops-support` or `your-devops-team@example.com`
 
 ### Useful Resources
-- [FluxCD Documentation](https://fluxcd.io/flux/)
-- [FluxCD with GitHub](https://fluxcd.io/flux/guides/repository-structure/#github)
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [Managing Deploy Keys (GitHub)](https://docs.github.com/en/developers/overview/managing-deploy-keys)
-- [Creating Webhooks (GitHub)](https://docs.github.com/en/webhooks/creating-webhooks)
-- [Azure Login Action for GitHub](https://github.com/Azure/login)
+*   [FluxCD Documentation](https://fluxcd.io/flux/)
+*   [FluxCD with GitHub (Repository Structure)](https://fluxcd.io/flux/guides/repository-structure/#github)
+*   [GitHub Actions Documentation](https://docs.github.com/en/actions)
+*   [Managing Deploy Keys (GitHub)](https://docs.github.com/en/developers/overview/managing-deploy-keys)
+*   [Creating Webhooks (GitHub)](https://docs.github.com/en/webhooks/creating-webhooks)
+*   [Azure Login Action for GitHub](https://github.com/Azure/login)
 
 ---
 
 ## 📝 Migration Checklist (GitHub Focused)
 
 ### Pre-Migration
-- [ ] New GitHub repository created and code pushed (all branches/tags).
-- [ ] Generate new SSH deploy key pair for FluxCD <> GitHub.
-- [ ] Add public deploy key to GitHub repository (read-only unless Flux needs write).
-- [ ] Plan GitHub Actions workflows (`.github/workflows/*.yml`).
-- [ ] Configure required secrets in GitHub Actions settings (e.g., `AZURE_CREDENTIALS_XXX`).
-- [ ] Test GitHub Actions workflows in a feature branch / PR if possible.
-- [ ] Prepare Kubernetes manifests for FluxCD:
-    - `GitRepository` pointing to GitHub URL and new secret name.
-    - `Secret` for the GitHub deploy key (private key + known_hosts).
-    - `Receiver` for GitHub webhooks (if using webhook notifications).
-    - `Secret` for the GitHub webhook shared secret.
+- [ ] New GitHub repository created (`YOUR_GITHUB_ORG/YOUR_REPO_NAME`).
+- [ ] All code, branches, and tags pushed from old repository to the new GitHub repository.
+- [ ] New SSH deploy key pair generated (`YOUR_PRIVATE_SSH_KEY_PATH` and its `.pub` counterpart).
+- [ ] Public deploy key added to GitHub repository (read-only unless Flux needs write access).
+- [ ] Plan for GitHub Actions workflows (e.g., `.github/workflows/gitops-cd.yml` created/updated in your local clone).
+- [ ] Required secrets for GitHub Actions (e.g., `AZURE_CREDENTIALS`) identified and ready to be configured in GitHub settings.
+- [ ] Kubernetes manifest for FluxCD `GitRepository` (pointing to GitHub URL and new secret name) prepared.
+- [ ] Kubernetes manifest for FluxCD deploy key `Secret` (with private key + known_hosts) prepared.
+- [ ] (If using webhook notifications) Kubernetes manifest for FluxCD `Receiver` (for GitHub) prepared.
+- [ ] (If using webhook notifications) Kubernetes `Secret` for the GitHub webhook shared secret prepared.
 
-### During Migration (Maintenance Window if needed)
-1.  **Apply to Kubernetes:**
-    - [ ] `Secret` for GitHub deploy key.
+### During Migration (Execute these steps, ideally during a maintenance window if impacting production)
+1.  **Apply to Kubernetes (using `kubectl apply -f <manifest-file> --context YOUR_CLUSTER_CONTEXT_NAME`):**
+    - [ ] `Secret` for GitHub deploy key (e.g., `YOUR_GITOPS_REPO_SECRET_NAME`).
     - [ ] Updated `GitRepository` CRD pointing to GitHub.
-    - [ ] (If using webhooks) `Secret` for GitHub webhook.
-    - [ ] (If using webhooks) `Receiver` CRD for GitHub webhooks.
-2.  **Configure in GitHub:**
-    - [ ] (If using webhooks) Setup webhook in GitHub repository settings pointing to FluxCD receiver URL, using the shared secret.
-3.  **Verify FluxCD:**
-    - [ ] Check `flux get sources git -n flux-system` shows successful fetch from GitHub.
-    - [ ] Check `flux get kustomizations -n flux-system` are reconciling.
-4.  **Test GitHub Actions:**
-    - [ ] Trigger a PR workflow: Create a PR, check validation steps.
-    - [ ] Trigger a push workflow: Merge PR to main (or push to deployment branch), check deployment steps.
-5.  **Monitor:**
-    - [ ] Monitor FluxCD controller logs.
-    - [ ] Monitor application health.
+    - [ ] (If using webhooks) `Secret` for GitHub webhook (e.g., `YOUR_WEBHOOK_SECRET_K8S_NAME`).
+    - [ ] (If using webhooks) `Receiver` CRD for GitHub webhooks (e.g., `YOUR_WEBHOOK_RECEIVER_NAME`).
+2.  **Configure in GitHub Repository Settings:**
+    - [ ] (If using webhooks) Setup webhook in `Settings` > `Webhooks`, pointing to FluxCD receiver URL, using the shared secret. Test delivery.
+    - [ ] Configure GitHub Actions secrets in `Settings` > `Secrets and variables` > `Actions` (e.g., `AZURE_CREDENTIALS`).
+3.  **Verify FluxCD Synchronization:**
+    - [ ] Check `flux get sources git -n YOUR_FLUX_NAMESPACE` shows successful fetch from GitHub.
+    - [ ] Check `flux get kustomizations -n YOUR_FLUX_NAMESPACE` status; ensure they are reconciling or ready.
+4.  **Test GitHub Actions CI/CD:**
+    - [ ] Trigger a Pull Request workflow: Create a test PR, check validation steps run.
+    - [ ] Trigger a push workflow: Merge PR to `YOUR_BRANCH_NAME` (or push directly), check deployment/notification steps run.
+5.  **Full End-to-End Test:**
+    - [ ] Make a small, verifiable change to a manifest, push to GitHub.
+    - [ ] Confirm change is deployed to the cluster and functioning as expected.
+6.  **Update Local Environments:**
+    - [ ] All developers update their local git remotes to point to the new GitHub repository.
 
 ### Post-Migration
-- [ ] Update all relevant project documentation (READMEs, how-to guides, etc.) to reflect GitHub.
-- [ ] Communicate changes and new workflows to the team.
-- [ ] Decommission old GitLab CI/CD pipelines and webhooks.
-- [ ] (Optional, after a stability period) Archive or remove the old GitLab repository if no longer needed for reference.
-- [ ] Update disaster recovery plans to include GitHub specific steps.
+- [ ] Update all relevant project documentation (READMEs, how-to guides, architectural diagrams, etc.) to reflect GitHub usage, URLs, and CI/CD processes.
+- [ ] Communicate changes and new workflows clearly to all team members.
+- [ ] Decommission old CI/CD pipelines (e.g., in GitLab).
+- [ ] Decommission old webhooks (e.g., in GitLab).
+- [ ] (After a stability period and confirmation) Archive or remove the old GitLab repository if it's no longer needed for reference.
+- [ ] Update any disaster recovery plans or procedures to include GitHub specific steps and repository locations.
 
 **Estimated Total Migration Time: 8-15 hours**
 **Recommended Migration Window: During maintenance hours if impacting production components.**

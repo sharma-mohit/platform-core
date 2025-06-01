@@ -66,7 +66,7 @@ A fully automated, production-grade AI platform infrastructure built entirely as
 ## 6. DEVOPS & GITOPS
 
 ### CI/CD Integration
-- GitLab pipelines with:
+- GitHub Actions with:
   - PR validation
   - Plan → Apply → Promote workflows
   - Image scanning with Trivy
@@ -134,7 +134,7 @@ A fully automated, production-grade AI platform infrastructure built entirely as
 - Terraform → infra
 - FluxCD with Kustomize → GitOps
 - Helm/Kustomize → config
-- GitLab CI → pipelines
+- GitHub Actions → pipelines
 
 ### Modularity
 - Reusable Terraform modules

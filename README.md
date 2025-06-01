@@ -155,5 +155,6 @@ We welcome contributions to improve Platform Core! Here's how you can help:
 
 ## Support
 
-- **Issues**: Report bugs and feature requests in the Gitlab issue tracker
-- **Security**: Report security vulnerabilities privately to the team
+- **Slack**: `#platform-core-dev` for general discussions and support.
+- **Issues**: Report bugs and feature requests in the GitHub issue tracker.
+- **Wiki**: For more detailed design documents and architectural decisions (future).

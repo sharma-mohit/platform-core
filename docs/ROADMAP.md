@@ -16,7 +16,7 @@ This roadmap outlines the phased development of a secure, modular, cloud-native 
 
 ---
 
-## 🚧 Phase 1: Core Infrastructure
+## 🚧 Phase 1: Core Infrastructure (Completed)
 
 ### Objectives
 - Deploy base AKS clusters in all environments
@@ -30,9 +30,12 @@ This roadmap outlines the phased development of a secure, modular, cloud-native 
 - Public + internal ingress setup
 - Azure Firewall rules + NSGs
 
+### Outcome
+- Secure and scalable Kubernetes foundation
+
 ---
 
-## 🚧 Phase 2: GitOps & Platform Bootstrap
+## 🚧 Phase 2: GitOps & Platform Bootstrap (Current Focus)
 
 ### Objectives
 - Deploy GitOps controller (FluxCD)
@@ -45,6 +48,9 @@ This roadmap outlines the phased development of a secure, modular, cloud-native 
 - Helm charts for core services
 - TLS using custom Cloudflare origin certs
 - Secrets operator setup with initial sync
+
+### Goal
+- Fully automated infrastructure-as-code platform with GitHub integration and no manual setup for core services
 
 ---
 
@@ -63,19 +69,22 @@ This roadmap outlines the phased development of a secure, modular, cloud-native 
 
 ---
 
-## 🚧 Phase 4: DevOps, CI/CD & Secrets Automation
+## 🚧 Phase 4: DevOps, CI/CD & Automation
 
 ### Objectives
-- Integrate GitLab CI pipelines
-- Setup drift detection for infra and manifests
-- Automate SPN and secret rotations
-- Build app lifecycle: dev → stage → prod
+- Integrate GitHub Actions workflows for Terraform and Kubernetes
+- Implement advanced security scanning (SAST, DAST, SCA)
+- Develop GitHub Actions workflow templates (plan, apply, promote)
+- Automate common operational tasks
 
 ### Deliverables
 - GitLab pipeline templates (plan, apply, promote)
 - SOPS/SealedSecrets (optional dev use)
 - RBAC templates for developer, ops, and bot roles
 - Documentation and Makefile for infra automation
+
+### Outcome
+- Streamlined, secure, and automated software delivery lifecycle
 
 ---
 
