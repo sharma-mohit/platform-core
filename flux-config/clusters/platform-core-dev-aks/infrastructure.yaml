@@ -9,4 +9,68 @@ spec:
   prune: true
   sourceRef:
     kind: GitRepository
-    name: flux-system 
+    name: flux-system
+  # Add explicit ordering for dependent components
+  wait: true
+  timeout: 5m0s
+  # Let's also create multiple smaller kustomizations instead of one big one
+  # This will allow us to better control the order
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-namespaces
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./flux-config/clusters/platform-core-dev-aks/infrastructure/namespaces
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-helm-repos
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./flux-config/clusters/platform-core-dev-aks/infrastructure/helm-repositories
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infrastructure-namespaces
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-components
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./flux-config/clusters/platform-core-dev-aks/infrastructure/components
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infrastructure-namespaces
+    - name: infrastructure-helm-repos
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-cluster-issuers
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./flux-config/clusters/platform-core-dev-aks/infrastructure/cluster-issuers
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infrastructure-components 
