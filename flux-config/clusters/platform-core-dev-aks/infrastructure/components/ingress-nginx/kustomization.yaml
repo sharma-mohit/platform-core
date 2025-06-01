@@ -1,7 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: ingress-nginx # Ensure resources from this overlay are in the ingress-nginx namespace
 resources:
-  - ../../../../../bases/ingress-nginx # Path to the base
+  - ../../../../../../bases/ingress-nginx # Adjusted path to base
 
 # Example of a patch for dev-specific values (if needed):
 # patches:
@@ -12,4 +13,4 @@ resources:
 #    target:
 #      kind: HelmRelease
 #      name: ingress-nginx
-#      namespace: ingress-nginx 
+#      # namespace: ingress-nginx # Not needed in target selector if kustomization namespace is set 
