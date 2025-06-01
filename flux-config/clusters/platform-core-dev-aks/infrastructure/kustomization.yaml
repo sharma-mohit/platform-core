@@ -5,4 +5,5 @@ resources:
   - ./helm-repositories
   - ./components
   - ./cluster-issuers
+  - ./secret-stores
   # Add other infrastructure categories here if any 

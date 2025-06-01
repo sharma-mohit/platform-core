@@ -10,11 +10,14 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  # Add explicit ordering for dependent components
   wait: true
-  timeout: 5m0s
-  # Let's also create multiple smaller kustomizations instead of one big one
-  # This will allow us to better control the order
+  timeout: 10m0s
+  dependsOn:
+    - name: infrastructure-namespaces
+    - name: infrastructure-helm-repos
+    - name: infrastructure-components
+    - name: infrastructure-cluster-issuers
+    - name: infrastructure-secret-stores
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -28,6 +31,8 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+  wait: true
+  timeout: 2m0s
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -43,6 +48,8 @@ spec:
     name: flux-system
   dependsOn:
     - name: infrastructure-namespaces
+  wait: true
+  timeout: 2m0s
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -59,6 +66,25 @@ spec:
   dependsOn:
     - name: infrastructure-namespaces
     - name: infrastructure-helm-repos
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cert-manager
+      namespace: cert-manager
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cert-manager-webhook
+      namespace: cert-manager
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: external-secrets
+      namespace: external-secrets
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: external-secrets-webhook
+      namespace: external-secrets
+  wait: true
+  timeout: 7m0s
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -74,7 +100,6 @@ spec:
     name: flux-system
   dependsOn:
     - name: infrastructure-components
-  # Add a health check for cert-manager deployment and wait for CRDs
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -84,5 +109,31 @@ spec:
       kind: Deployment
       name: cert-manager-webhook
       namespace: cert-manager
+  wait: true
+  timeout: 5m0s
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-secret-stores
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./flux-config/clusters/platform-core-dev-aks/infrastructure/secret-stores
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: infrastructure-components
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: external-secrets
+      namespace: external-secrets
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: external-secrets-webhook
+      namespace: external-secrets
   wait: true
   timeout: 5m0s 
