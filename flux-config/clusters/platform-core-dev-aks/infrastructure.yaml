@@ -73,4 +73,16 @@ spec:
     kind: GitRepository
     name: flux-system
   dependsOn:
-    - name: infrastructure-components 
+    - name: infrastructure-components
+  # Add a health check for cert-manager deployment and wait for CRDs
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cert-manager
+      namespace: cert-manager
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cert-manager-webhook
+      namespace: cert-manager
+  wait: true
+  timeout: 5m0s 
