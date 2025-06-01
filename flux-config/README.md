@@ -1,6 +1,6 @@
 # FluxCD Configuration (Monorepo)
 
-This directory (`flux-config/`) is the root of the GitLab monorepository used to manage all Kubernetes cluster configurations via FluxCD, following GitOps principles.
+This directory (`flux-config/`) is the root of the GitHub monorepository used to manage all Kubernetes cluster configurations via FluxCD, following GitOps principles.
 
 It contains the actual Kustomize bases and cluster-specific overlays that define the desired state of your Kubernetes environments.
 
@@ -53,17 +53,16 @@ For a detailed explanation of this structure and how to work with it, please con
 
 FluxCD will monitor the Git repository. The main Kustomization (`clusters/<cluster-name>/flux-system/kustomizations.yaml`) defines how base configurations are layered with cluster-specific overlays and the order of application.
 
-Refer to [`flux-howto.md`](./flux-howto.md) for all operational details.
+Refer to [`../docs/phase2-fluxcd-operational-guide.md`](../docs/phase2-fluxcd-operational-guide.md) for all operational details.
 
 ### Bootstrapping
 
-The initial bootstrapping process is detailed in `terraform/docs/phase2-week1-fluxcd-setup.md`. The `--path` for `flux bootstrap` should point to the `flux-system` directory within your cluster's configuration (e.g., `./clusters/platform-core-dev-aks/flux-system`).
+The initial bootstrapping process is detailed in `../docs/phase2-fluxcd-bootstrap-guide.md`. The `--path` for `flux bootstrap` should point to the `flux-system` directory within your cluster's configuration (e.g., `./clusters/platform-core-dev-aks/flux-system`).
 
 ```bash
-flux bootstrap gitlab --owner=<your-gitlab-username-or-group> \
-  --repository=<your-gitlab-repository-name> \
+flux bootstrap github --owner=<your-github-username-or-org> \
+  --repository=<your-github-repository-name> \
   --branch=main \
   --path=./clusters/<cluster-name>/flux-system \
-  --personal \
-  --token-auth
+  --personal # Use --token-auth if using a PAT for bootstrap, otherwise SSH is default
 ``` 
