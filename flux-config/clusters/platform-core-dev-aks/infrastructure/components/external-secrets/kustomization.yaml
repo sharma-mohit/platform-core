@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: external-secrets # Ensure resources from this overlay are in the external-secrets namespace
+resources:
+  - ../../../../../../bases/external-secrets # Path to the base
+  - dev-akv-secretstore.yaml # ClusterSecretStore or SecretStore for this dev cluster
+
+# Patches for dev-specific values for ESO HelmRelease can be added here if needed. 

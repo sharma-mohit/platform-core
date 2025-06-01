@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../../../bases/cluster-issuers/letsencrypt-prod
+
+# Example patch to change the email for the prod issuer specifically for this dev cluster (if needed):
+# patches:
+#  - patch: |-
+#      - op: replace
+#        path: /spec/acme/email
+#        value: dev-cluster-admin-prod-issuer@example.com
+#    target:
+#      kind: ClusterIssuer
+#      name: letsencrypt-prod 

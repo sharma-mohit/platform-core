@@ -3,12 +3,12 @@ kind: Kustomization
 resources:
   - ../../../../../../bases/cluster-issuers/letsencrypt-staging
 
-# Example patch if you need to change the email for the dev cluster's staging issuer:
+# Example patch to change the email for the staging issuer specifically for this dev cluster:
 # patches:
 #  - patch: |-
 #      - op: replace
 #        path: /spec/acme/email
-#        value: dev-admin@platformcore.com
+#        value: dev-cluster-admin@example.com
 #    target:
 #      kind: ClusterIssuer
 #      name: letsencrypt-staging 

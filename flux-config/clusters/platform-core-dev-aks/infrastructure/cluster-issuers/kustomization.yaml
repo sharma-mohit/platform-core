@@ -3,4 +3,6 @@ kind: Kustomization
 resources:
   # List all ClusterIssuer overlays for this cluster
   - ./letsencrypt-staging
+  - ./letsencrypt-prod
+  # Add other cluster issuer overlays here
   # - ./letsencrypt-prod # Example for when you add a production issuer 
