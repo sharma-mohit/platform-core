@@ -107,6 +107,75 @@ Refer to `docs/phase2-fluxcd-architecture.md` and `docs/phase2-fluxcd-operationa
    - Enables syncing secrets from Azure Key Vault into Kubernetes secrets.
    - Verify: `kubectl get pods -n external-secrets`
 
+   **Azure Workload Identity Configuration for ESO & Application Pods:**
+
+   External Secrets Operator, and the application pods that consume secrets, will typically use Azure Workload Identity to authenticate with Azure Key Vault. This requires specific setup:
+
+   1.  **AKS Cluster Configuration (Terraform):**
+       *   Ensure your AKS cluster in `terraform/modules/aks/main.tf` has `oidc_issuer_enabled = true` and `workload_identity_enabled = true`. Apply these changes via Terraform if not already set.
+
+   2.  **Azure AD Application / Managed Identity:**
+       *   Create an Azure AD Application or a User-Assigned Managed Identity that will be used by your Kubernetes service accounts to access Key Vault.
+       *   Grant this identity the "Key Vault Secrets User" role (or more specific permissions) on your Azure Key Vault.
+
+   3.  **Federated Identity Credential:**
+       *   Establish a federated identity credential between the Azure AD identity (from step 2) and the OIDC issuer URL of your AKS cluster. You'll also specify the Kubernetes namespace and service account name that will use this identity.
+       *   Example Azure CLI command:
+         ```bash
+         # Get AKS OIDC Issuer URL
+         AKS_OIDC_ISSUER=$(az aks show --resource-group YOUR_RG --name YOUR_AKS_CLUSTER --query "oidcIssuerProfile.issuerUrl" -o tsv)
+
+         # Create Federated Identity (using User-Assigned Managed Identity as an example)
+         az identity federated-credential create \
+           --name your-federated-credential-name \
+           --identity-name YOUR_MANAGED_IDENTITY_NAME \
+           --resource-group YOUR_MANAGED_IDENTITY_RG \
+           --issuer ${AKS_OIDC_ISSUER} \
+           --subject system:serviceaccount:YOUR_NAMESPACE:YOUR_SERVICE_ACCOUNT_NAME \
+           --audience api://AzureADTokenExchange
+         ```
+
+   4.  **Kubernetes Service Account Annotations:**
+       *   The Kubernetes service account (e.g., `default` or a custom one) used by your application pods (and potentially by the ESO pod itself if it needs to access KV directly for certain `ClusterSecretStore` configurations) must be annotated:
+         ```yaml
+         apiVersion: v1
+         kind: ServiceAccount
+         metadata:
+           name: your-service-account-name
+           namespace: your-namespace
+           annotations:
+             azure.workload.identity/client-id: "YOUR_AZURE_AD_APP_OR_MANAGED_IDENTITY_CLIENT_ID"
+             # azure.workload.identity/tenant-id: "YOUR_AZURE_TENANT_ID" # Required if identity is in a different tenant
+         ```
+
+   5.  **Pod Labels for Webhook Injection:**
+       *   Your application pods that need to access Azure Key Vault secrets (and thus require the Azure Identity environment variables) must have the label `azure.workload.identity/use: "true"`. This enables the Azure Workload Identity mutating admission webhook to inject the necessary environment variables (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_FEDERATED_TOKEN_FILE`) and the projected service account token volume.
+         ```yaml
+         # In your Pod/Deployment spec:
+         spec:
+           template:
+             metadata:
+               labels:
+                 azure.workload.identity/use: "true"
+           # ... rest of your pod spec
+         ```
+
+   6.  **ClusterSecretStore Configuration:**
+       *   Your `ClusterSecretStore` (or `SecretStore`) should be configured with `authType: "WorkloadIdentity"` as shown in your `flux-config/.../dev-akv-secretstore.yaml`.
+       *   No explicit `serviceAccountRef` is usually needed in the `ClusterSecretStore` if the External Secrets Operator's *own service account* is correctly annotated and federated for Workload Identity access (if ESO itself needs to list Key Vaults, for instance, though typically it relies on the application pod's identity for fetching specific secrets).
+
+   **Troubleshooting Workload Identity:**
+
+   *   **Error: `AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_FEDERATED_TOKEN_FILE must be set` in application pods:**
+       *   Verify the pod has the `azure.workload.identity/use: "true"` label.
+       *   Check the logs of the `azure-workload-identity-webhook-*` pods in the `kube-system` namespace for errors.
+       *   Ensure the service account used by the pod has the correct `azure.workload.identity/client-id` annotation.
+       *   Confirm the federated identity credential is correctly set up in Azure AD, matching the service account name, namespace, and AKS OIDC issuer.
+   *   **ESO Errors (e.g., access denied to Key Vault):**
+       *   Verify the Azure AD identity (Client ID in SA annotation) has permissions on the Key Vault.
+       *   Check ESO pod logs: `kubectl logs -n external-secrets deploy/external-secrets -c external-secrets`
+       *   Ensure the `ClusterSecretStore` points to the correct `vaultUrl` and `tenantId`.
+
 ## Observability Stack (Optional)
 
 Deployment of Prometheus, Grafana, Loki, Tempo, etc., follows the same GitOps pattern: define them as HelmReleases/Kustomizations in your `flux-config` GitHub repository under the appropriate paths.

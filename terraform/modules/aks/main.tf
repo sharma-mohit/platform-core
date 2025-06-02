@@ -6,6 +6,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
   kubernetes_version  = var.kubernetes_version
   tags                = var.tags
 
+  oidc_issuer_enabled      = true
+  workload_identity_enabled = true
+
   default_node_pool {
     name                = var.system_node_pool.name
     node_count          = var.system_node_pool.node_count

@@ -94,4 +94,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Revised documentation (`flux-config/README.md`, `docs/GITLAB-TO-GITHUB-MIGRATION.md`, and other relevant files) to reflect GitHub usage, commands, and links.
 
 ### Fixed
-- Corrected resource group scoping in `
+- Corrected resource group scoping in `terraform/modules/*/main.tf` to use module-specific resource groups patterns instead of a shared variable.
+- Enabled OIDC Issuer and Workload Identity on AKS cluster (`terraform/modules/aks/main.tf`) for Azure AD Workload Identity integration.
