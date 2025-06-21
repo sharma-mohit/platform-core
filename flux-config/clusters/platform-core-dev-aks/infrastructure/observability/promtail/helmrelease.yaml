@@ -1,0 +1,27 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: promtail
+  namespace: observability-agent-promtail
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: promtail
+      version: "6.9.1"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    config:
+      clients:
+        - url: http://loki-gateway.observability-loki.svc.cluster.local/loki/api/v1/push
+          # This endpoint needs to be resolvable from the dev cluster.
+          # This assumes VNet peering and DNS integration is set up.
+          tenant_id: dev
+      snippets:
+        extraRelabelConfigs:
+          - source_labels: ['__meta_kubernetes_pod_label_cluster']
+            target_label: 'cluster'
+            replacement: 'dev-uaenorth'

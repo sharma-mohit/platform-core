@@ -48,6 +48,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "user" {
+  count                 = var.user_node_pool != null ? 1 : 0
   name                  = var.user_node_pool.name
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
   vm_size               = var.user_node_pool.vm_size

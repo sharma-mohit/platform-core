@@ -2,19 +2,10 @@ terraform {
   required_version = ">= 1.0.0"
 }
 
-# Import shared configuration
-module "shared" {
-  source = "../../shared"
-
-  environment     = local.environment
-  subscription_id = var.subscription_id
-  tenant_id       = var.tenant_id
-}
-
 # Set environment-specific variables
 locals {
-  environment = "dev"
-  location    = "uaenorth"
+  environment = var.environment
+  location    = var.location
   
   # Common tags for all resources
   common_tags = merge(
@@ -48,26 +39,8 @@ module "aks" {
   subnet_id   = module.network.aks_subnet_id # AKS nodes will reside in this subnet
   
   # Node pool configuration
-  system_node_pool = {
-    name            = "system"
-    node_count      = 2
-    vm_size         = "Standard_D4s_v3"
-    os_disk_size_gb = 100
-    min_count       = 1
-    max_count       = 3
-  }
-  
-  user_node_pool = {
-    name                  = "user"
-    node_count            = 1
-    vm_size               = "Standard_D4s_v3"
-    os_disk_size_gb       = 100
-    enable_auto_scaling = false
-    gpu_enabled           = false
-    min_count             = 0
-    max_count             = 2
-    node_labels           = {}
-  }
+  system_node_pool = var.aks.system_node_pool
+  user_node_pool   = var.aks.user_node_pool
   keyvault_id = module.keyvault.key_vault_id
 }
 
@@ -105,14 +78,9 @@ module "keyvault" {
   log_analytics_workspace_id = module.aks.log_analytics_workspace_id
 } 
 
-# Get outputs from ops environment for observability
-data "terraform_remote_state" "ops" {
-  backend = "azurerm"
-  
-  config = {
-    storage_account_name = var.terraform_state_storage_account_name
-    container_name       = "tfstate-ops-uaenorth"
-    key                  = "ops-uaenorth.terraform.tfstate"
-    resource_group_name  = var.terraform_state_resource_group_name
-  }
+# Resource group for observability components
+resource "azurerm_resource_group" "observability" {
+  name     = "rg-observability-${var.environment}-${var.location_short}-001"
+  location = var.location
+  tags     = var.tags
 } 

@@ -1,6 +1,6 @@
 # Environment specific variables
 project         = "platform-core"
-environment     = "dev"
+environment     = "ops"
 location        = "uaenorth"
 
 # Azure specific values
@@ -31,34 +31,26 @@ terraform_state_resource_group_name = "rg-tfstate-platformcore-shared-uaen-001"
 # }
 
 # Override AKS configuration if needed
-# aks = {
-#   kubernetes_version = "1.30.4"
-#   system_node_pool = {
-#     name            = "system"
-#     node_count      = 2
-#     vm_size         = "Standard_D4s_v3"
-#     os_disk_size_gb = 100
-#     min_count       = 2
-#     max_count       = 4
-#   }
-#   user_node_pool = {
-#     name            = "user"
-#     node_count      = 2
-#     vm_size         = "Standard_D4s_v3"
-#     os_disk_size_gb = 100
-#     min_count       = 2
-#     max_count       = 4
-#     gpu_enabled     = false
-#   }
-# }
+aks = {
+  kubernetes_version = "1.30.4"
+  system_node_pool = {
+    name            = "system"
+    node_count      = 1
+    vm_size         = "Standard_D2s_v3"
+    os_disk_size_gb = 100
+    min_count       = 1
+    max_count       = 2
+  }
+  user_node_pool = null
+}
 
 tags = {
   Project     = "platform-core"
   ManagedBy   = "terraform"
-  Environment = "dev"
+  Environment = "ops"
   Owner       = "platform-team"
   CostCenter  = "ai-platform"
   createdBy    = "mohit.sharma"
   projectName  = "platform-core"
-  workLoadName = "dev"
+  workLoadName = "ops"
 } 

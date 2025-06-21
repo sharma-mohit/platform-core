@@ -126,15 +126,22 @@ variable "security" {
   default = null
 }
 
+# Location short variable for resource naming
+variable "location_short" {
+  description = "Short location name for resource naming"
+  type        = string
+  default     = "uaen"
+}
+
 # Terraform state variables
 variable "terraform_state_storage_account_name" {
   description = "The name of the storage account used for Terraform state"
   type        = string
-  default     = "sttfstateplatformcore" # Update with your actual storage account name
+  default     = "sttfstateplatformcore"
 }
 
 variable "terraform_state_resource_group_name" {
   description = "The name of the resource group containing the Terraform state storage account"
   type        = string
-  default     = "rg-tfstate-platformcore-shared-uaen-001" # Update with your actual resource group name
+  default     = "rg-tfstate-platformcore-shared-uaen-001"
 } 

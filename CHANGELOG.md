@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - YYYY-MM-DD
 
+### Fixed
+- **Critical Issues Resolution**: Fixed critical implementation issues in observability infrastructure
+  - Added missing `location_short` variable to `ops-uaenorth` environment
+  - Added missing `kubelet_identity_object_id` output to AKS module
+  - Added Terraform state variables to both `dev-uaenorth` and `ops-uaenorth` environments
+  - Populated empty kustomization files with placeholder content and documentation
+  - Fixed cross-environment remote state data sharing configuration
+  - Ensured all observability components have proper directory structure and documentation
+
 ### Added
+- **Observability Infrastructure Implementation**: Created Terraform modules for centralized observability stack
+  - Created `terraform/modules/observability-central` module for ops cluster components:
+    - Storage accounts for Mimir, Loki, and Tempo
+    - Storage containers for each component
+    - Key Vault secrets for storage access keys
+    - Grafana admin password generation
+  - Created `terraform/modules/observability-agent` module for workload clusters:
+    - Key Vault access policy for agent clusters
+    - Integration with central observability components
+  - Added `terraform/envs/ops-uaenorth/observability-central.tf` for central deployment
+  - Added `terraform/envs/dev-uaenorth/observability-agent.tf` for agent deployment
+  - Configured remote state data sharing between environments
+  - Created directory structure in `flux-config/` for all observability components
 - Kustomize with FluxCD to project documentation (`PRD.md`, `ROADMAP.md`, `platform-core-plan.md`) to reflect its use in the GitOps strategy.
 - **Phase 2 Implementation Guide** (`docs/phase2-howto.md`) - Comprehensive guide for GitOps & Platform Bootstrap including:
   - FluxCD bootstrap strategy with Kustomize overlays
@@ -96,3 +118,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Corrected resource group scoping in `terraform/modules/*/main.tf` to use module-specific resource groups patterns instead of a shared variable.
 - Enabled OIDC Issuer and Workload Identity on AKS cluster (`terraform/modules/aks/main.tf`) for Azure AD Workload Identity integration.
+
+## [Week 3] - 2024-12-19
+
+### Added
+- **Week 3 Observability Stack Plan**: Created comprehensive deployment plan for full observability stack
+  - LGTM stack (Loki, Grafana, Tempo, Mimir) + Prometheus integration
+  - OpenTelemetry collector configuration for metrics, logs, and traces
+  - 5-phase implementation strategy over 10 days
+  - Azure Blob Storage backend configuration for all components
+  - Pre-built dashboards for infrastructure, applications, and GPU monitoring
+  - Advanced alerting rules for Kubernetes and GPU workloads
+  - Security considerations and RBAC configurations
+  - Performance testing and validation strategies
+
+### Components Planned
+- **Metrics**: Prometheus (short-term) + Mimir (long-term storage)
+- **Logging**: Loki with Promtail collection agents
+- **Tracing**: Tempo for distributed tracing
+- **Visualization**: Grafana with multi-data source integration
+- **Collection**: OpenTelemetry Operator with Gateway and Agent modes
+- **Storage**: Azure Blob Storage for all persistent data
+
+### Documentation
+- `docs/WEEK3-OBSERVABILITY-PLAN.md`: Complete 10-day implementation plan
+- Architecture diagrams and component breakdown
+- Directory structure for Terraform modules and FluxCD manifests
+- Configuration examples and YAML templates

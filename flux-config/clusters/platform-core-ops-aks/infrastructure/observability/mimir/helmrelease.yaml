@@ -1,0 +1,47 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: mimir
+  namespace: observability-mimir
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: mimir
+      version: "4.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    mimir:
+      structuredConfig:
+        multitenancy_enabled: true
+        blocks_storage:
+          backend: azure
+          azure:
+            account_name: "stmimirobsopsuaen001"
+        ruler:
+          storage:
+            backend: azure
+            azure:
+              account_name: "stmimirobsopsuaen001"
+        alertmanager:
+          storage:
+            backend: azure
+            azure:
+              account_name: "stmimirobsopsuaen001"
+    
+    envFrom:
+      - secretRef:
+          name: mimir-storage-secret
+
+    ingress:
+      enabled: true
+      ingressClassName: nginx-internal
+      hosts:
+        - name: mimir.platform-core.internal
+          path: /
+          pathType: Prefix
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"

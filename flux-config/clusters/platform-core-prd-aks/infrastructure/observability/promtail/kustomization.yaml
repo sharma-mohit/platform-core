@@ -1,0 +1,6 @@
+# Promtail configuration for prd cluster
+# This file will contain:
+# - Promtail DaemonSet deployment
+# - Central Loki endpoint configuration
+# - Cluster and environment labeling
+# - Log parsing and enrichment rules

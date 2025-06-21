@@ -37,4 +37,9 @@ output "resource_group_name" {
 output "resource_group_id" {
   description = "The ID of the resource group"
   value       = azurerm_resource_group.rg.id
+}
+
+output "kubelet_identity_object_id" {
+  description = "The Object ID of the User Assigned Identity used for the AKS cluster kubelet identity"
+  value       = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
 } 

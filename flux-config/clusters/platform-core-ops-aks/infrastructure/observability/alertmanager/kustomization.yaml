@@ -1,0 +1,6 @@
+# AlertManager configuration for central operations cluster
+# This file will contain:
+# - AlertManager HelmRelease configuration
+# - Multi-cluster alert routing
+# - Notification channels setup
+# - Alert grouping and inhibition rules

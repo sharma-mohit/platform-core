@@ -6,4 +6,5 @@ resources:
   - ./components
   - ./cluster-issuers
   - ./secret-stores
+  - ./observability
   # Add other infrastructure categories here if any 

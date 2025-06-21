@@ -1,0 +1,55 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: observability-grafana
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: grafana
+      version: "6.29.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    admin:
+      existingSecret: grafana-admin-secret
+      userKey: admin-user
+      passwordKey: admin-password
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+        - name: Mimir
+          type: prometheus
+          url: http://mimir-query-frontend.observability-mimir.svc.cluster.local:8080/prometheus
+          access: proxy
+          isDefault: true
+        - name: Loki
+          type: loki
+          url: http://loki-gateway.observability-loki.svc.cluster.local
+          access: proxy
+        - name: Tempo
+          type: tempo
+          url: http://tempo-distributor.observability-tempo.svc.cluster.local:4317
+          access: proxy
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+    dashboards:
+      default:
+        multi-cluster-overview:
+          # k8s-sidecar-config-map-injection-via-flux-from-git
+          json: |
+            {} 

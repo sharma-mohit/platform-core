@@ -1,0 +1,6 @@
+# Prometheus Agent configuration for prd cluster
+# This file will contain:
+# - Prometheus Agent deployment
+# - Remote write configuration to central Mimir
+# - Local service discovery setup
+# - Cluster and environment labeling
