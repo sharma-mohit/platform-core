@@ -392,6 +392,35 @@ curl -X POST http://<qdrant-ip>:6333/collections/test/points/search \
   -d '{"vector": [0.1, 0.2, 0.3], "limit": 10}'
 ```
 
+## Security Considerations
+
+### IP Address Configuration
+**Important**: Never hardcode IP addresses in your Terraform configuration. Use environment variables instead:
+
+```bash
+# Set your IP ranges as environment variables
+export TF_VAR_allowed_ip_ranges='["YOUR_IP_ADDRESS/32", "ANOTHER_IP_ADDRESS/32"]'
+
+# Or use a .env file (ensure it's in .gitignore)
+echo 'TF_VAR_allowed_ip_ranges=["YOUR_IP_ADDRESS/32"]' >> .env
+```
+
+**To find your current IP address**:
+```bash
+# On Linux/macOS
+curl -s ifconfig.me
+
+# On Windows
+curl -s ipinfo.io/ip
+```
+
+### Customer-Managed Key Encryption
+All resources use customer-managed key encryption for UAE sovereign cloud compliance:
+- Storage accounts
+- Key Vault
+- AKS managed disks
+- ACR content
+
 ## Verification & Testing
 
 ### Comprehensive Health Check

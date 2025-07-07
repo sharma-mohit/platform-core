@@ -71,7 +71,7 @@ module "keyvault" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.aks.id
   
   # Allow current client IP for terraform operations
-  allowed_ip_ranges = ["213.42.6.27/32", "83.111.84.246/32"]
+  allowed_ip_ranges = var.allowed_ip_ranges
 }
 
 # Disk Encryption Module for customer-managed keys (required by Azure policies)

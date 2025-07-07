@@ -271,3 +271,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing OpenTelemetry collector configurations implemented
 - AlertManager placeholder replaced with actual implementation
 - Cross-cluster connectivity issues resolved
+
+### Security
+- **CRITICAL**: Removed hardcoded IP addresses from Terraform configuration
+  - Replaced hardcoded IPs in Key Vault firewall rules with environment variables
+  - Added `allowed_ip_ranges` variable to both dev and ops environments
+  - Updated documentation with proper IP configuration instructions
+  - This prevents exposure of real IP addresses in version control
+
+### Documentation
+- Added security considerations section to Implementation Guide
+- Added instructions for proper IP address configuration using environment variables
+
+## [2024-01-XX] - Documentation Consolidation

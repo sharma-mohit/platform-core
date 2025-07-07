@@ -149,4 +149,12 @@ variable "terraform_state_resource_group_name" {
   description = "The name of the resource group containing the Terraform state storage account"
   type        = string
   default     = "rg-tfstate-platformcore-shared-uaen-001"
+}
+
+# Security variables
+variable "allowed_ip_ranges" {
+  description = "List of IP ranges allowed to access Key Vault (use TF_VAR_allowed_ip_ranges environment variable)"
+  type        = list(string)
+  default     = []
+  sensitive   = true
 } 
