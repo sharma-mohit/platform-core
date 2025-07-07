@@ -8,6 +8,17 @@ variable "location" {
   type        = string
 }
 
+variable "disk_encryption_set_access_policy_id" {
+  description = "The ID of the Key Vault access policy for the disk encryption set. Used to establish a dependency."
+  type        = string
+  default     = null
+}
+
+variable "resource_group_name" {
+  description = "The name of the resource group where AKS resources will be created"
+  type        = string
+}
+
 variable "project" {
   description = "The project name"
   type        = string
@@ -29,9 +40,11 @@ variable "subnet_id" {
   type        = string
 }
 
-variable "keyvault_id" {
-  description = "The ID of the Key Vault for secrets integration"
+
+variable "disk_encryption_set_id" {
+  description = "The ID of the disk encryption set for customer-managed key encryption"
   type        = string
+  default     = null
 }
 
 variable "system_node_pool" {
@@ -76,4 +89,9 @@ variable "resource_group_name_pattern" {
   description = "The pattern for the resource group name. Will be formatted with environment and location"
   type        = string
   default     = "rg-aks-%s-%s-001"  # Will be formatted with environment and location
-} 
+}
+
+variable "log_analytics_workspace_id" {
+  description = "The ID of the Log Analytics workspace."
+  type        = string
+}

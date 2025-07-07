@@ -8,7 +8,7 @@ subscription_id = "b139cf36-b4d2-4653-bab0-6d98354a68ef"
 tenant_id       = "909b0a4b-54de-4250-b223-b55c49dabac7"
 
 # Terraform state configuration
-terraform_state_storage_account_name = "sttfstateplatformcore"
+terraform_state_storage_account_name = "platformcoretfstate"
 terraform_state_resource_group_name = "rg-tfstate-platformcore-shared-uaen-001"
 
 # Override any common variables if needed
@@ -61,4 +61,5 @@ tags = {
   createdBy    = "mohit.sharma"
   projectName  = "platform-core"
   workLoadName = "dev"
+  Sovereignty = "Confidential"
 } 

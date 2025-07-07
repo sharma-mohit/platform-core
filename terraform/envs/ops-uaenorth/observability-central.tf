@@ -3,7 +3,9 @@ module "observability_central" {
 
   resource_group_name = azurerm_resource_group.observability.name
   location            = var.location
-  central_cluster_name = module.aks.cluster_name
+  project_name        = var.project_name
+  environment         = var.environment
+  central_cluster_name = module.aks.aks_cluster_name
   key_vault_id        = module.keyvault.key_vault_id
   
   mimir_storage_account_name = "stmimirobs${var.environment}${var.location_short}001"

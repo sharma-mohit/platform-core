@@ -4,6 +4,11 @@ variable "project" {
   type        = string
 }
 
+variable "project_name" {
+  description = "The project name (alias for project, for module compatibility)"
+  type        = string
+}
+
 variable "organization" {
   description = "The organization name"
   type        = string
@@ -11,7 +16,7 @@ variable "organization" {
 }
 
 variable "environment" {
-  description = "The environment (dev, stg, prd)"
+  description = "The environment (dev, stg, prd, ops)"
   type        = string
   default     = "dev"
 }

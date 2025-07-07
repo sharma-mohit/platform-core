@@ -57,9 +57,4 @@ resource "azurerm_resource_group" "rg" {
   tags     = var.tags
 }
 
-# Role assignment for AKS to pull from ACR
-resource "azurerm_role_assignment" "aks_acr" {
-  scope                = azurerm_container_registry.acr.id
-  role_definition_name = "AcrPull"
-  principal_id         = var.aks_identity_id
-} 
+ 

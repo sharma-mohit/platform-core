@@ -1,0 +1,145 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: opentelemetry-operator
+  namespace: observability-agent-otel
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: opentelemetry-operator
+      version: "0.45.0"
+      sourceRef:
+        kind: HelmRepository
+        name: open-telemetry
+        namespace: flux-system
+  values:
+    admissionWebhooks:
+      enabled: true
+      certManager:
+        enabled: true
+    certManager:
+      enabled: true
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: cluster-collector
+  namespace: observability-agent-otel
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: opentelemetry-collector
+      version: "0.45.0"
+      sourceRef:
+        kind: HelmRepository
+        name: open-telemetry
+        namespace: flux-system
+  values:
+    mode: "daemonset"
+    config:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+        prometheus:
+          config:
+            scrape_configs:
+              - job_name: 'kubernetes-pods'
+                kubernetes_sd_configs:
+                  - role: pod
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                    action: keep
+                    regex: true
+                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                    action: replace
+                    target_label: __metrics_path__
+                    regex: (.+)
+                  - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                    action: replace
+                    regex: ([^:]+)(?::\d+)?;(\d+)
+                    replacement: $1:$2
+                    target_label: __address__
+      
+      processors:
+        batch:
+          timeout: 1s
+          send_batch_size: 1024
+        resource:
+          attributes:
+            - key: cluster
+              value: "dev-uaenorth"
+              action: upsert
+            - key: environment
+              value: "dev"
+              action: upsert
+            - key: region
+              value: "uaenorth"
+              action: upsert
+            - key: cluster_type
+              value: "workload"
+              action: upsert
+            - key: tenant_id
+              value: "platform-core"
+              action: upsert
+      
+      exporters:
+        prometheusremotewrite:
+          endpoint: "https://mimir.platform-core.internal/api/v1/push"
+          headers:
+            "X-Scope-OrgID": "dev"
+          sending_queue:
+            enabled: true
+            num_consumers: 5
+            queue_size: 1000
+          retry_on_failure:
+            enabled: true
+            initial_interval: 5s
+            max_interval: 30s
+            max_elapsed_time: 300s
+        
+        loki:
+          endpoint: "https://loki.platform-core.internal/loki/api/v1/push"
+          tenant_id: "dev"
+          format: "json"
+          
+        tempo:
+          endpoint: "tempo.platform-core.internal:4317"
+          headers:
+            tenant: "dev"
+      
+      service:
+        pipelines:
+          metrics:
+            receivers: [otlp, prometheus]
+            processors: [batch, resource]
+            exporters: [prometheusremotewrite]
+          logs:
+            receivers: [otlp]
+            processors: [batch, resource]
+            exporters: [loki]
+          traces:
+            receivers: [otlp]
+            processors: [batch, resource]
+            exporters: [tempo]
+    
+    serviceAccount:
+      create: true
+      annotations:
+        azure.workload.identity/client-id: "${AZURE_WORKLOAD_IDENTITY_CLIENT_ID}"
+    
+    podAnnotations:
+      azure.workload.identity/use: "true"
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 128Mi 

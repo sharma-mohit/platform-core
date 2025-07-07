@@ -1,5 +1,6 @@
 # Environment specific variables
 project         = "platform-core"
+project_name    = "platform-core"
 environment     = "ops"
 location        = "uaenorth"
 
@@ -53,4 +54,5 @@ tags = {
   createdBy    = "mohit.sharma"
   projectName  = "platform-core"
   workLoadName = "ops"
+  Sovereignty = "Confidential"
 } 

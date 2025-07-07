@@ -8,6 +8,16 @@ variable "location" {
   type        = string
 }
 
+variable "project_name" {
+  description = "The name of the project."
+  type        = string
+}
+
+variable "environment" {
+  description = "The environment name (e.g., dev, stg, prd, ops)."
+  type        = string
+}
+
 variable "central_cluster_name" {
   description = "The name of the central operations AKS cluster."
   type        = string

@@ -1,41 +1,37 @@
+# Get current Azure client configuration
+data "azurerm_client_config" "current" {}
+
 resource "azurerm_key_vault" "kv" {
   name                = "${var.project}-${var.environment}-kv"
   location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   tenant_id           = var.tenant_id
   sku_name            = "premium"
   tags                = var.tags
 
   purge_protection_enabled   = true
   soft_delete_retention_days = 7
+  enable_rbac_authorization  = true
 
   network_acls {
-    default_action = "Deny"
+    default_action = "Allow"
     bypass         = "AzureServices"
     ip_rules       = var.allowed_ip_ranges
     virtual_network_subnet_ids = [var.subnet_id]
   }
+}
 
-  access_policy {
-    tenant_id = var.tenant_id
-    object_id = var.aks_identity_id
-
-    secret_permissions = [
-      "Get",
-      "List"
-    ]
-
-    certificate_permissions = [
-      "Get",
-      "List"
-    ]
-  }
+# Grant current user Key Vault Administrator role
+resource "azurerm_role_assignment" "kv_admin" {
+  scope                = azurerm_key_vault.kv.id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
 resource "azurerm_private_endpoint" "kv" {
   name                = "${var.project}-${var.environment}-kv-pe"
   location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   subnet_id           = var.subnet_id
   tags                = var.tags
 
@@ -54,22 +50,16 @@ resource "azurerm_private_endpoint" "kv" {
 
 resource "azurerm_private_dns_zone" "kv" {
   name                = "privatelink.vaultcore.azure.net"
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = "rg-aks-${var.environment}-${var.location}-001"
   tags                = var.tags
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "kv" {
   name                  = "${var.project}-${var.environment}-kv-dnslink"
-  resource_group_name   = azurerm_resource_group.rg.name
+  resource_group_name   = "rg-aks-${var.environment}-${var.location}-001"
   private_dns_zone_name = azurerm_private_dns_zone.kv.name
   virtual_network_id    = var.vnet_id
   tags                  = var.tags
-}
-
-resource "azurerm_resource_group" "rg" {
-  name     = format(var.resource_group_name_pattern, var.environment, var.location)
-  location = var.location
-  tags     = var.tags
 }
 
 # Diagnostic settings
@@ -86,4 +76,4 @@ resource "azurerm_monitor_diagnostic_setting" "kv" {
     category = "AllMetrics"
     enabled  = true
   }
-} 
+}

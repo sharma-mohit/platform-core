@@ -1,0 +1,124 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Environment Comparison",
+    "tags": ["multi-cluster", "comparison", "platform-core"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Memory Usage Comparison",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "avg_over_time(node_memory_MemAvailable_bytes[1h]) by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - Memory Available"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "CPU Usage Comparison",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "100 - (avg_over_time(node_cpu_seconds_total{mode=\"idle\"}[1h]) * 100) by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - CPU Usage %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Application Performance Comparison",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - 95th Percentile Response Time"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Error Rate Comparison",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - 5xx Error Rate"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Infrastructure Drift Detection",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "abs(avg by (cluster) (node_memory_MemAvailable_bytes{environment=\"prd\"}) - avg by (cluster) (node_memory_MemAvailable_bytes{environment=\"stg\"}))",
+            "legendFormat": "Memory Drift (PRD vs STG)"
+          },
+          {
+            "expr": "abs(avg by (cluster) (node_cpu_seconds_total{mode=\"idle\", environment=\"prd\"}) - avg by (cluster) (node_cpu_seconds_total{mode=\"idle\", environment=\"stg\"}))",
+            "legendFormat": "CPU Drift (PRD vs STG)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Capacity Planning Insights",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum by (environment) (kube_pod_info)",
+            "legendFormat": "{{environment}} - Total Pods"
+          },
+          {
+            "expr": "sum by (environment) (kube_node_info)",
+            "legendFormat": "{{environment}} - Total Nodes"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 7,
+        "title": "Resource Efficiency Score",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "avg by (environment) ((node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)",
+            "legendFormat": "{{environment}} - Memory Efficiency %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "green", "value": 80}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "1m",
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

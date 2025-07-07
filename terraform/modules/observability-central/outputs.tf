@@ -15,5 +15,5 @@ output "tempo_storage_account_id" {
 
 output "central_key_vault_id" {
   description = "The ID of the Key Vault in the central ops cluster."
-  value       = var.key_vault_id
+  value       = azurerm_key_vault.observability_kv.id
 }

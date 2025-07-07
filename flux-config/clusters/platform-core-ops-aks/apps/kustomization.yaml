@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# This file will list overlays for specific applications deployed to this cluster.
+# Each application will have its own subdirectory here, containing a kustomization.yaml
+# that points to its base configuration and applies cluster-specific patches.
+# Example:
+# resources:
+#  - ./my-cool-api-overlay
+#  - ./another-app-overlay 

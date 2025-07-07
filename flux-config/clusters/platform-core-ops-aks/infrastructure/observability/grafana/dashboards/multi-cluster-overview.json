@@ -1,0 +1,124 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Multi-Cluster Overview",
+    "tags": ["multi-cluster", "overview", "platform-core"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Cluster Health Matrix",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum by (cluster) (up{job=\"kubernetes-nodes\"})",
+            "legendFormat": "{{cluster}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Resource Utilization by Cluster",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "avg by (cluster) (node_memory_MemAvailable_bytes)",
+            "legendFormat": "{{cluster}} - Memory Available"
+          },
+          {
+            "expr": "avg by (cluster) (node_cpu_seconds_total{mode=\"idle\"})",
+            "legendFormat": "{{cluster}} - CPU Idle"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Alert Summary by Environment",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "count by (environment, severity) (ALERTS)",
+            "legendFormat": "{{environment}} - {{severity}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Pod Count by Cluster",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "sum by (cluster) (kube_pod_info)",
+            "legendFormat": "{{cluster}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Network Traffic Between Clusters",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{cluster}} - {{service}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "GPU Utilization Matrix",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "nvidia_gpu_utilization_gpu",
+            "legendFormat": "{{cluster}} - GPU {{gpu}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 7,
+        "title": "Cost Analysis by Cluster",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum by (cluster) (node_cpu_seconds_total) * 0.001",
+            "legendFormat": "{{cluster}} - CPU Cost"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

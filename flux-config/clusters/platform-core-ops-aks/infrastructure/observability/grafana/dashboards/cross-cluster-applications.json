@@ -1,0 +1,143 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Cross-Cluster Application Performance",
+    "tags": ["multi-cluster", "applications", "performance", "platform-core"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Service Mesh View Across Clusters",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m]) by cluster, service",
+            "legendFormat": "{{cluster}} - {{service}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Request Flow Between Environments",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{destination_cluster!=\"\"}[5m]) by source_cluster, destination_cluster",
+            "legendFormat": "{{source_cluster}} → {{destination_cluster}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Error Rate Comparison",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) by cluster, service",
+            "legendFormat": "{{cluster}} - {{service}} - 5xx Errors"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Latency Percentiles by Cluster",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) by cluster",
+            "legendFormat": "{{cluster}} - 99th Percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) by cluster",
+            "legendFormat": "{{cluster}} - 95th Percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m])) by cluster",
+            "legendFormat": "{{cluster}} - 50th Percentile"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Cross-Cluster Service Dependencies",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "up{job=\"cross-cluster-service\"}",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true,
+                "job": true,
+                "instance": true
+              },
+              "renameByName": {
+                "cluster": "Source Cluster",
+                "service": "Service Name",
+                "Value": "Status"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Application Throughput",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m]) by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - Requests/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 7,
+        "title": "Service Availability",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg by (cluster) (up{job=\"kubernetes-service-endpoints\"}) * 100",
+            "legendFormat": "{{cluster}} - Service Availability %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 95},
+                {"color": "green", "value": 99}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

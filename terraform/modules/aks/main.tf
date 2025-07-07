@@ -1,10 +1,13 @@
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "${var.project}-${var.environment}-aks"
   location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   dns_prefix          = "${var.project}-${var.environment}"
   kubernetes_version  = var.kubernetes_version
+  disk_encryption_set_id = var.disk_encryption_set_id
   tags                = var.tags
+
+  depends_on = [var.disk_encryption_set_access_policy_id]
 
   oidc_issuer_enabled      = true
   workload_identity_enabled = true
@@ -33,13 +36,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   oms_agent {
-    log_analytics_workspace_id = azurerm_log_analytics_workspace.workspace.id
+    log_analytics_workspace_id = var.log_analytics_workspace_id
   }
 
   # Microsoft Defender for Containers - Updated syntax
   azure_policy_enabled = true
   microsoft_defender {
-    log_analytics_workspace_id = azurerm_log_analytics_workspace.workspace.id
+    log_analytics_workspace_id = var.log_analytics_workspace_id
   }
 
   key_vault_secrets_provider {
@@ -71,24 +74,5 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
   )
 }
 
-resource "azurerm_resource_group" "rg" {
-  name     = format(var.resource_group_name_pattern, var.environment, var.location)
-  location = var.location
-  tags     = var.tags
-}
 
-resource "azurerm_log_analytics_workspace" "workspace" {
-  name                = "${var.project}-${var.environment}-law"
-  location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
-  tags                = var.tags
-}
 
-# Role assignment for AKS to access Key Vault
-resource "azurerm_role_assignment" "aks_keyvault" {
-  scope                = var.keyvault_id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
-} 
