@@ -183,7 +183,7 @@ echo "------------------------------"
 
 for ENV in "${ENVIRONMENTS[@]}"; do
     KV_NAME="platform-core-$ENV-kv"
-    RG_NAME="rg-keyvault-$ENV-uaenorth-001" #rg-keyvault-dev-uaenorth-001
+    RG_NAME="rg-aks-$ENV-uaenorth-001" #rg-aks-dev-uaenorth-001
     
     if az keyvault show --name $KV_NAME --resource-group $RG_NAME &> /dev/null; then
         print_status 0 "Key Vault exists: $KV_NAME"

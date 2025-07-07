@@ -1,0 +1,235 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: observability-grafana
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: grafana
+      version: "6.29.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    admin:
+      existingSecret: grafana-admin-secret
+      userKey: admin-user
+      passwordKey: admin-password
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+        # Per-environment data sources
+        - name: Mimir-Dev
+          type: prometheus
+          url: http://mimir-query-frontend.observability-mimir.svc.cluster.local:8080/prometheus
+          access: proxy
+          jsonData:
+            httpHeaderName1: X-Scope-OrgID
+          secureJsonData:
+            httpHeaderValue1: dev
+        
+        - name: Mimir-Ops
+          type: prometheus
+          url: http://mimir-query-frontend.observability-mimir.svc.cluster.local:8080/prometheus
+          access: proxy
+          jsonData:
+            httpHeaderName1: X-Scope-OrgID
+          secureJsonData:
+            httpHeaderValue1: ops
+        
+        # Cross-tenant data source for comparison views
+        - name: Mimir-All-Environments
+          type: prometheus
+          url: http://mimir-query-frontend.observability-mimir.svc.cluster.local:8080/prometheus
+          access: proxy
+          jsonData:
+            httpHeaderName1: X-Scope-OrgID
+          secureJsonData:
+            httpHeaderValue1: dev|ops
+          isDefault: true
+        
+        - name: Loki
+          type: loki
+          url: http://loki-gateway.observability-loki.svc.cluster.local
+          access: proxy
+        
+        - name: Tempo
+          type: tempo
+          url: http://tempo-distributor.observability-tempo.svc.cluster.local:4317
+          access: proxy
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+    dashboards:
+      default:
+        multi-cluster-overview:
+          json: |
+            {
+              "dashboard": {
+                "id": null,
+                "title": "Multi-Cluster Overview",
+                "tags": ["multi-cluster", "overview", "platform-core"],
+                "style": "dark",
+                "timezone": "browser",
+                "panels": [
+                  {
+                    "id": 1,
+                    "title": "Cluster Health Matrix",
+                    "type": "stat",
+                    "targets": [
+                      {
+                        "expr": "sum by (cluster) (up{job=\"kubernetes-nodes\"})",
+                        "legendFormat": "{{cluster}}"
+                      }
+                    ],
+                    "fieldConfig": {
+                      "defaults": {
+                        "color": {
+                          "mode": "thresholds"
+                        },
+                        "thresholds": {
+                          "steps": [
+                            {"color": "red", "value": 0},
+                            {"color": "green", "value": 1}
+                          ]
+                        }
+                      }
+                    },
+                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+                  }
+                ],
+                "time": {
+                  "from": "now-1h",
+                  "to": "now"
+                },
+                "refresh": "30s",
+                "schemaVersion": 30,
+                "version": 1
+              }
+            }
+        environment-comparison:
+          json: |
+            {
+              "dashboard": {
+                "id": null,
+                "title": "Environment Comparison",
+                "tags": ["multi-cluster", "comparison", "platform-core"],
+                "style": "dark",
+                "timezone": "browser",
+                "panels": [
+                  {
+                    "id": 1,
+                    "title": "Memory Usage Comparison",
+                    "type": "timeseries",
+                    "targets": [
+                      {
+                        "expr": "avg_over_time(node_memory_MemAvailable_bytes[1h]) by cluster, environment",
+                        "legendFormat": "{{cluster}} ({{environment}}) - Memory Available"
+                      }
+                    ],
+                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+                  }
+                ],
+                "time": {
+                  "from": "now-6h",
+                  "to": "now"
+                },
+                "refresh": "1m",
+                "schemaVersion": 30,
+                "version": 1
+              }
+            }
+        cross-cluster-applications:
+          json: |
+            {
+              "dashboard": {
+                "id": null,
+                "title": "Cross-Cluster Application Performance",
+                "tags": ["multi-cluster", "applications", "performance", "platform-core"],
+                "style": "dark",
+                "timezone": "browser",
+                "panels": [
+                  {
+                    "id": 1,
+                    "title": "Service Mesh View Across Clusters",
+                    "type": "timeseries",
+                    "targets": [
+                      {
+                        "expr": "rate(http_requests_total[5m]) by cluster, service",
+                        "legendFormat": "{{cluster}} - {{service}}"
+                      }
+                    ],
+                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+                  }
+                ],
+                "time": {
+                  "from": "now-1h",
+                  "to": "now"
+                },
+                "refresh": "30s",
+                "schemaVersion": 30,
+                "version": 1
+              }
+            }
+        gpu-monitoring-all-clusters:
+          json: |
+            {
+              "dashboard": {
+                "id": null,
+                "title": "GPU Monitoring - All Clusters",
+                "tags": ["multi-cluster", "gpu", "ai-ml", "platform-core"],
+                "style": "dark",
+                "timezone": "browser",
+                "panels": [
+                  {
+                    "id": 1,
+                    "title": "GPU Utilization Across All Clusters",
+                    "type": "timeseries",
+                    "targets": [
+                      {
+                        "expr": "nvidia_gpu_utilization_gpu by cluster, environment",
+                        "legendFormat": "{{cluster}} ({{environment}}) - GPU {{gpu}}"
+                      }
+                    ],
+                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+                  }
+                ],
+                "time": {
+                  "from": "now-1h",
+                  "to": "now"
+                },
+                "refresh": "30s",
+                "schemaVersion": 30,
+                "version": 1
+              }
+            }
+    ingress:
+      enabled: true
+      ingressClassName: nginx-internal
+      hosts:
+        - name: grafana.platform-core.internal
+          path: /
+          pathType: Prefix
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 256Mi 

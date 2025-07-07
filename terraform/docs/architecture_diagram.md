@@ -61,7 +61,7 @@ graph TD
 
     subgraph KeyVault_Module_rg_keyvault_dev_uaenorth_001
         direction LR
-        RG_KV["azurerm_resource_group.rg\nrg-keyvault-dev-uaenorth-001"]
+        RG_KV["azurerm_resource_group.rg\nrg-aks-dev-uaenorth-001"]
         KV["azurerm_key_vault.kv"]
         KV_PE["azurerm_private_endpoint.kv"]
         KV_DNS_ZONE["azurerm_private_dns_zone.kv\n(privatelink.vaultcore.azure.net)"]

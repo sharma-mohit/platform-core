@@ -8,6 +8,127 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
+- **Comprehensive Implementation Guide**: Created consolidated `docs/IMPLEMENTATION-GUIDE.md` for complete platform deployment:
+  - **All Phases Covered**: Step-by-step instructions for Phases 1-6 with clear objectives and expected outputs
+  - **Verification Steps**: Comprehensive health checks and testing procedures for each phase
+  - **Troubleshooting Section**: Common issues and solutions for all components
+  - **Next Steps Guidance**: Immediate actions and future enhancements
+  - **Consolidated Approach**: Combines best practices from all existing phase guides into single document
+- **Documentation Index**: Created `docs/README.md` for improved documentation navigation:
+  - **Use Case Navigation**: Quick links organized by user needs (new user, deployment, architecture, operations)
+  - **Documentation Flow**: Visual diagram showing relationships between documents
+  - **Finding Information**: Categorized search for specific topics
+  - **Documentation Standards**: Guidelines for maintaining consistent documentation
+  - **Help Resources**: Clear guidance on where to get help
+
+### Fixed
+- **Terraform Backend Resource Group Standardization**: Aligned all environments to use shared resource group approach as intended in architecture:
+  - **Updated `scripts/setup-terraform-backend.sh`**: Modified to create shared resource group `rg-tfstate-platformcore-shared-uaen-001` instead of individual resource groups
+  - **Updated backend configurations**: Both `dev-uaenorth` and `ops-uaenorth` environments now use the shared resource group
+  - **Container separation**: Each environment uses separate containers (`tfstate-dev-uaenorth`, `tfstate-ops-uaenorth`) within the shared storage account
+  - **Removed ops-specific script**: Deleted `scripts/setup-ops-terraform-backend.sh` as it's no longer needed with shared approach
+  - **Updated terraform.tfvars**: Both environments now reference the shared resource group name
+  - **Architecture compliance**: Aligns with documented shared resources approach in `docs/phase1-terraform-architecture.md`
+  - **Cost optimization**: Reduces resource group overhead while maintaining environment isolation through separate containers
+
+### Updated
+- **Documentation Architecture Updates**: Updated all architectural documentation to reflect latest infrastructure changes:
+  - **Customer-Managed Key Encryption**: Added comprehensive documentation for customer-managed key encryption across all Azure resources
+    - Updated `docs/phase1-terraform-architecture.md` with customer-managed key architecture and implementation details
+    - Added sovereign cloud compliance section with required tags and encryption requirements
+    - Documented disk encryption set configuration for AKS managed disks
+    - Added storage account and ACR encryption with customer-managed keys
+  - **Sovereign Cloud Compliance**: Enhanced documentation for UAE sovereign cloud compliance
+    - Required resource tags (createdBy, environment, project, region, costCenter, owner)
+    - Private endpoints for all Azure services
+    - Network security with default deny policies
+    - Service endpoints for Azure services
+    - Audit logging and compliance reporting
+  - **Centralized Multi-Cluster Observability**: Updated documentation to reflect completed observability implementation
+    - Centralized LGTM stack (Loki, Grafana, Tempo, Mimir) in ops cluster
+    - Lightweight agents on workload clusters (OpenTelemetry, Prometheus Agent, Promtail)
+    - Multi-cluster dashboards and cross-cluster alerting
+    - Single pane of glass for all environments
+  - **Updated Implementation Guides**: Enhanced all how-to guides with latest architecture
+    - `docs/phase1-terraform-execution-guide.md`: Added customer-managed key setup and verification
+    - `docs/phase1-howto.md`: Updated with sovereign compliance and encryption requirements
+    - `docs/PRD.md`: Updated to reflect centralized observability and compliance requirements
+    - `docs/ROADMAP.md`: Updated phases to include completed observability implementation
+    - `docs/platform-core-plan.md`: Added compliance and security sections
+  - **New Modules Documentation**: Added documentation for new Terraform modules
+    - `disk-encryption/`: Customer-managed key encryption for AKS managed disks
+    - `firewall/`: Azure Firewall for egress traffic control
+    - `observability-central/`: Centralized observability stack components
+    - `observability-agent/`: Lightweight collection agents for workload clusters
+
+### Fixed
+- **Dev Environment Sovereign Policy Compliance** (`terraform/envs/dev-uaenorth/terraform.tfvars`) - Aligned dev environment with ops environment for UAE Cloud Sovereign Policies:
+  - Added missing `Sovereignty = "Confidential"` tag to dev environment tags
+  - Fixed project name consistency from `platform-core-v2` to `platform-core` to match ops environment
+  - Corrected Terraform state configuration to use proper dev environment storage account and resource group
+  - Ensures both dev and ops environments comply with sovereign policy requirements
+  - Maintains consistency in resource naming and tagging across all environments
+- **Dev Environment State File Naming** (`terraform/envs/dev-uaenorth/backend.hcl`) - Updated state file name to match ops environment format:
+  - Changed state file key from `dev.terraform.tfstate` to `platform-core-dev.tfstate`
+  - Aligns with ops environment naming convention (`platform-core-ops.tfstate`)
+  - Ensures consistent state file naming across all environments
+  - Maintains clear environment identification in state file names
+
+### Added
+- **Terraform Workspace Integration** (`docs/phase3-howto.md`) - Updated Phase 3 guide to use Terraform workspaces for environment isolation:
+  - Added workspace creation and selection steps for both `ops` and `dev` environments
+  - Documented workspace benefits: state isolation, resource separation, simplified management, environment safety
+  - Enhanced troubleshooting section with workspace-specific issues and solutions
+  - Updated step numbering to accommodate new workspace management steps
+  - Ensures proper state isolation between environments while using same backend configuration
+
+### Fixed
+- **Resource Naming Corrections** (`docs/phase3-howto.md`) - Fixed incorrect resource names in verification commands:
+  - Corrected AKS cluster name from `aks-platform-core-ops-uaen-001` to `platform-core-ops-aks`
+  - Updated resource group reference from `rg-aks-ops-uaen-001` to `rg-aks-ops-uaenorth-001`
+  - Fixed Key Vault name from `kv-platform-core-ops-uaen-001` to `platform-core-ops-kv`
+  - Ensures commands match actual Terraform resource naming conventions
+- **Ops Cluster Backend Setup Script** (`scripts/setup-ops-terraform-backend.sh`) - Automated script for creating Terraform state storage for the ops cluster:
+  - Creates dedicated resource group `rg-tfstate-ops-001`
+  - Provisions storage account `platformcoretfstateops` with security best practices
+  - Enables versioning and soft delete for state recovery
+  - Creates `tfstate` container for ops cluster state
+  - Provides clear output with next steps for Terraform initialization
+- **Enhanced Phase 3 Implementation Guide** (`docs/phase3-howto.md`) - Updated with complete ops cluster deployment process:
+  - Added Step 1: Terraform state setup for ops cluster with automated script option
+  - Detailed infrastructure deployment steps with verification
+  - Enhanced troubleshooting section with specific issues
+  - Improved step numbering and organization
+  - Added verification commands for all deployment stages
+
+### Fixed
+- **UAE Cloud Sovereign Policy Compliance**: Fixed storage account creation to comply with customer-managed key (CMK) encryption requirements:
+  - Updated `scripts/setup-ops-terraform-backend.sh` to create Key Vault and configure storage account with CMK encryption
+  - Updated `docs/phase3-howto.md` manual setup instructions to include Key Vault creation and CMK configuration
+  - Added proper RBAC role assignments for Key Vault access
+  - Ensures compliance with UAE Cloud Sovereign Policies (G42_19_StorageAccount_CMKEnable)
+- **Critical Issues Resolution**: Fixed critical implementation issues in observability infrastructure
+  - Added missing `location_short` variable to `ops-uaenorth` environment
+  - Added missing `kubelet_identity_object_id` output to AKS module
+  - Added Terraform state variables to both `dev-uaenorth` and `ops-uaenorth` environments
+  - Populated empty kustomization files with placeholder content and documentation
+  - Fixed cross-environment remote state data sharing configuration
+  - Ensured all observability components have proper directory structure and documentation
+
+### Added
+- **Observability Infrastructure Implementation**: Created Terraform modules for centralized observability stack
+  - Created `terraform/modules/observability-central` module for ops cluster components:
+    - Storage accounts for Mimir, Loki, and Tempo
+    - Storage containers for each component
+    - Key Vault secrets for storage access keys
+    - Grafana admin password generation
+  - Created `terraform/modules/observability-agent` module for workload clusters:
+    - Key Vault access policy for agent clusters
+    - Integration with central observability components
+  - Added `terraform/envs/ops-uaenorth/observability-central.tf` for central deployment
+  - Added `terraform/envs/dev-uaenorth/observability-agent.tf` for agent deployment
+  - Configured remote state data sharing between environments
+  - Created directory structure in `flux-config/` for all observability components
 - Kustomize with FluxCD to project documentation (`PRD.md`, `ROADMAP.md`, `platform-core-plan.md`) to reflect its use in the GitOps strategy.
 - **Phase 2 Implementation Guide** (`docs/phase2-howto.md`) - Comprehensive guide for GitOps & Platform Bootstrap including:
   - FluxCD bootstrap strategy with Kustomize overlays
@@ -96,3 +217,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Corrected resource group scoping in `terraform/modules/*/main.tf` to use module-specific resource groups patterns instead of a shared variable.
 - Enabled OIDC Issuer and Workload Identity on AKS cluster (`terraform/modules/aks/main.tf`) for Azure AD Workload Identity integration.
+
+## [Week 3] - 2024-12-19
+
+### Added
+- **Week 3 Observability Stack Plan**: Created comprehensive deployment plan for full observability stack
+  - LGTM stack (Loki, Grafana, Tempo, Mimir) + Prometheus integration
+  - OpenTelemetry collector configuration for metrics, logs, and traces
+  - 5-phase implementation strategy over 10 days
+  - Azure Blob Storage backend configuration for all components
+  - Pre-built dashboards for infrastructure, applications, and GPU monitoring
+  - Advanced alerting rules for Kubernetes and GPU workloads
+  - Security considerations and RBAC configurations
+  - Performance testing and validation strategies
+
+### Components Planned
+- **Metrics**: Prometheus (short-term) + Mimir (long-term storage)
+- **Logging**: Loki with Promtail collection agents
+- **Tracing**: Tempo for distributed tracing
+- **Visualization**: Grafana with multi-data source integration
+- **Collection**: OpenTelemetry Operator with Gateway and Agent modes
+- **Storage**: Azure Blob Storage for all persistent data
+
+### Documentation
+- `docs/WEEK3-OBSERVABILITY-PLAN.md`: Complete 10-day implementation plan
+- Architecture diagrams and component breakdown
+- Directory structure for Terraform modules and FluxCD manifests
+- Configuration examples and YAML templates
+
+### Removed
+- **Redundant Ops Cluster Guide** (`docs/ops-cluster-deployment-guide.md`) - Removed to eliminate confusion and maintain single source of truth in `docs/phase3-howto.md`
+
+## [Unreleased]
+
+### Added
+- **Week 3 Observability Implementation**: Complete implementation of missing observability components for dev and ops clusters
+  - OpenTelemetry Collector deployment for workload clusters
+  - Multi-cluster Grafana dashboards with actual content
+  - AlertManager configuration with multi-cluster alerting
+  - Cross-cluster networking and DNS resolution
+  - Complete workload cluster agent deployment
+  - Multi-tenant data sources for Grafana
+  - Environment-aware alert rules
+  - RBAC and security configurations
+
+### Changed
+- Enhanced Grafana configuration with multi-tenant data sources
+- Updated Prometheus agent configuration for proper cluster identification
+- Improved Promtail configuration for cross-cluster log forwarding
+
+### Fixed
+- Empty dashboard JSON files now contain actual dashboard definitions
+- Missing OpenTelemetry collector configurations implemented
+- AlertManager placeholder replaced with actual implementation
+- Cross-cluster connectivity issues resolved

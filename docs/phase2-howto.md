@@ -137,24 +137,24 @@ Refer to `docs/phase2-fluxcd-architecture.md` and `docs/phase2-fluxcd-operationa
 
    4.  **Kubernetes Service Account Annotations:**
        *   The Kubernetes service account (e.g., `default` or a custom one) used by your application pods (and potentially by the ESO pod itself if it needs to access KV directly for certain `ClusterSecretStore` configurations) must be annotated:
-         ```yaml
+```yaml
          apiVersion: v1
          kind: ServiceAccount
          metadata:
            name: your-service-account-name
            namespace: your-namespace
-           annotations:
+    annotations:
              azure.workload.identity/client-id: "YOUR_AZURE_AD_APP_OR_MANAGED_IDENTITY_CLIENT_ID"
              # azure.workload.identity/tenant-id: "YOUR_AZURE_TENANT_ID" # Required if identity is in a different tenant
          ```
 
    5.  **Pod Labels for Webhook Injection:**
        *   Your application pods that need to access Azure Key Vault secrets (and thus require the Azure Identity environment variables) must have the label `azure.workload.identity/use: "true"`. This enables the Azure Workload Identity mutating admission webhook to inject the necessary environment variables (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_FEDERATED_TOKEN_FILE`) and the projected service account token volume.
-         ```yaml
+```yaml
          # In your Pod/Deployment spec:
-         spec:
+spec:
            template:
-             metadata:
+metadata:
                labels:
                  azure.workload.identity/use: "true"
            # ... rest of your pod spec

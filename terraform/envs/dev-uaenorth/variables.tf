@@ -65,15 +65,17 @@ variable "aks" {
       min_count       = number
       max_count       = number
     })
-    user_node_pool = object({
-      name            = string
-      node_count      = number
-      vm_size         = string
-      os_disk_size_gb = number
-      min_count       = number
-      max_count       = number
-      gpu_enabled     = bool
-    })
+    user_node_pool = optional(object({
+      name                  = string
+      node_count            = number
+      vm_size               = string
+      os_disk_size_gb       = number
+      enable_auto_scaling   = bool
+      min_count             = number
+      max_count             = number
+      gpu_enabled           = bool
+      node_labels           = map(string)
+    }))
   })
   default = null
 }
@@ -122,4 +124,17 @@ variable "security" {
     enable_defender       = bool
   })
   default = null
+}
+
+# Terraform state variables
+variable "terraform_state_storage_account_name" {
+  description = "The name of the storage account used for Terraform state"
+  type        = string
+  default     = "sttfstateplatformcore" # Update with your actual storage account name
+}
+
+variable "terraform_state_resource_group_name" {
+  description = "The name of the resource group containing the Terraform state storage account"
+  type        = string
+  default     = "rg-tfstate-platformcore-shared-uaen-001" # Update with your actual resource group name
 } 

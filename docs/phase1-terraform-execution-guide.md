@@ -1,6 +1,6 @@
 # Phase 1: Terraform Azure Infrastructure - Execution Guide
 
-This document provides step-by-step instructions for provisioning the Azure infrastructure using the Terraform configurations defined for the AI Platform.
+This document provides step-by-step instructions for provisioning the Azure infrastructure using the Terraform configurations defined for the AI Platform, including customer-managed key encryption and sovereign cloud compliance.
 
 **Prerequisite**: Ensure you have reviewed the [Phase 1 Terraform Architecture Guide](./phase1-terraform-architecture.md) to understand the design and components.
 
@@ -33,6 +33,7 @@ This document provides step-by-step instructions for provisioning the Azure infr
 - Git installed.
 - Azure CLI installed and configured.
 - Terraform CLI (latest stable version recommended) installed.
+- Understanding of UAE sovereign cloud compliance requirements.
 
 ## Initial Setup
 
@@ -57,36 +58,113 @@ az account set --subscription "<Your-Subscription-ID-or-Name>"
 
 ## Terraform Backend Setup
 
-The Terraform state is stored in an Azure Storage Account. This setup needs to be done once for the storage account, and then configured per environment.
+The Terraform state is stored in an Azure Storage Account with customer-managed key encryption. This setup needs to be done once for the storage account, and then configured per environment.
 
 ### 1. Understand Backend Configuration
 - The backend configuration template is in `terraform/shared/backend.tf`.
 - Each environment (e.g., `terraform/envs/dev-uaenorth/`) has a `backend.hcl` file that provides specific values for that environment's state file.
+- Customer-managed key encryption is required for compliance with UAE sovereign cloud policies.
 
 ### 2. Create Storage Account for Terraform State (One-Time)
 This step is typically performed manually or with a separate, minimal Terraform script once per project.
 
-**Example using Azure CLI:**
+**Option A: Using the automated script (Recommended)**
+
+```bash
+# Run the backend setup script
+./scripts/setup-terraform-backend.sh
+```
+
+This script will:
+- Create the resource group `rg-tfstate-platformcore-shared-uaen-001`
+- Create a Key Vault for customer-managed keys
+- Create a customer-managed encryption key
+- Create a user-assigned managed identity for key access
+- Create the storage account with customer-managed key encryption
+- Enable versioning and soft delete for recovery
+- Create the `tfstate` container
+- Display the backend configuration details
+
+**Option B: Manual setup (if you prefer)**
+
 ```bash
 # Variables (adjust as needed)
 RESOURCE_GROUP_NAME="rg-tfstate-platformcore-shared-uaen-001" # Central RG for TF state
 STORAGE_ACCOUNT_NAME="sttfstateplatformcore$(openssl rand -hex 4)" # Needs to be globally unique
 LOCATION="uaenorth"
 CONTAINER_NAME_PREFIX="tfstate"
+KEY_VAULT_NAME="kv-tfstate-shared-001"
 
 # Create Resource Group
 az group create --name "${RESOURCE_GROUP_NAME}" --location "${LOCATION}"
 
-# Create Storage Account
+# Create Key Vault for customer-managed keys (required by UAE Cloud Sovereign Policies)
+az keyvault create \
+  --name "${KEY_VAULT_NAME}" \
+  --resource-group "${RESOURCE_GROUP_NAME}" \
+  --location "${LOCATION}" \
+  --sku standard \
+  --enable-purge-protection true \
+  --enable-rbac-authorization true
+
+# Grant current user Key Vault Administrator role
+CURRENT_USER_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
+az role assignment create \
+  --assignee "${CURRENT_USER_OBJECT_ID}" \
+  --role "Key Vault Administrator" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.KeyVault/vaults/${KEY_VAULT_NAME}"
+
+# Create storage account encryption key in Key Vault
+az keyvault key create \
+  --vault-name "${KEY_VAULT_NAME}" \
+  --name "storage-encryption-key" \
+  --kty RSA \
+  --size 2048
+
+# Get the key URI
+KEY_URI=$(az keyvault key show --vault-name "${KEY_VAULT_NAME}" --name "storage-encryption-key" --query key.kid -o tsv)
+
+# Create user-assigned managed identity for storage account
+USER_ASSIGNED_IDENTITY_NAME="id-storage-shared-001"
+az identity create \
+  --name "${USER_ASSIGNED_IDENTITY_NAME}" \
+  --resource-group "${RESOURCE_GROUP_NAME}" \
+  --location "${LOCATION}"
+
+# Get the user-assigned identity principal ID
+USER_ASSIGNED_IDENTITY_PRINCIPAL_ID=$(az identity show \
+  --name "${USER_ASSIGNED_IDENTITY_NAME}" \
+  --resource-group "${RESOURCE_GROUP_NAME}" \
+  --query principalId -o tsv)
+
+# Grant Key Vault permissions to the user-assigned managed identity
+az role assignment create \
+  --assignee "${USER_ASSIGNED_IDENTITY_PRINCIPAL_ID}" \
+  --role "Key Vault Crypto User" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.KeyVault/vaults/${KEY_VAULT_NAME}"
+
+# Get the user-assigned identity resource ID
+USER_ASSIGNED_IDENTITY_ID=$(az identity show \
+  --name "${USER_ASSIGNED_IDENTITY_NAME}" \
+  --resource-group "${RESOURCE_GROUP_NAME}" \
+  --query id -o tsv)
+
+# Create Storage Account with customer-managed key encryption
 az storage account create \
   --name "${STORAGE_ACCOUNT_NAME}" \
   --resource-group "${RESOURCE_GROUP_NAME}" \
   --location "${LOCATION}" \
   --sku "Standard_LRS" \
   --kind "StorageV2" \
-  --allow-blob-public-access false
+  --allow-blob-public-access false \
+  --identity-type "UserAssigned" \
+  --user-identity-id "${USER_ASSIGNED_IDENTITY_ID}" \
+  --encryption-key-source Microsoft.Keyvault \
+  --encryption-key-vault "${KEY_URI}" \
+  --encryption-key-name "storage-encryption-key" \
+  --key-vault-user-identity-id "${USER_ASSIGNED_IDENTITY_ID}"
 
-# Optional: Enable versioning and soft delete for recovery
+# Enable versioning and soft delete for recovery
 az storage account blob-service-properties update \
   --account-name "${STORAGE_ACCOUNT_NAME}" \
   --resource-group "${RESOURCE_GROUP_NAME}" \
@@ -94,8 +172,15 @@ az storage account blob-service-properties update \
   --enable-delete-retention true \
   --delete-retention-days 7
 
-# Output storage account name for use in backend.hcl
+# Create container for terraform state
+az storage container create \
+  --name "${CONTAINER_NAME_PREFIX}" \
+  --account-name "${STORAGE_ACCOUNT_NAME}"
+
 echo "Terraform State Storage Account: ${STORAGE_ACCOUNT_NAME}"
+echo "Resource Group: ${RESOURCE_GROUP_NAME}"
+echo "Container: ${CONTAINER_NAME_PREFIX}"
+echo "Key Vault: ${KEY_VAULT_NAME}"
 ```
 
 **Note**: You will also need to create containers within this storage account for each environment. This can be done manually or the `terraform init` command might offer to create it if it doesn't exist (depending on permissions).
@@ -126,12 +211,25 @@ Key variables to review/customize:
 - `project_name`
 - `environment`
 - `location`
-- `tags`
+- `tags` (ensure sovereign cloud compliance tags are included)
 - AKS node pool configurations (`system_node_pool`, `user_node_pool`)
 - VNet address spaces
 - Specific SKUs for services if defaults are not suitable.
+- Customer-managed key configurations
 
 Refer to `terraform/shared/common.tfvars` for common defaults that might be overridden here.
+
+**Important**: Ensure all required sovereign cloud tags are included:
+```hcl
+tags = {
+  createdBy   = "Terraform"
+  environment = "dev"
+  project     = "platform-core"
+  region      = "uaenorth"
+  costCenter  = "platform-team"
+  owner       = "platform-team"
+}
+```
 
 ### 3. Initialize Terraform
 This command downloads necessary providers and configures the backend.
@@ -151,7 +249,11 @@ Generates an execution plan. Review the planned changes carefully.
 ```bash
 terraform plan -out=tfplan
 ```
-This shows what Terraform will create, modify, or delete.
+This shows what Terraform will create, modify, or delete. Pay special attention to:
+- Customer-managed key encryption configurations
+- Required sovereign cloud tags
+- Network security configurations
+- Private endpoint configurations
 
 ### 6. Apply Deployment
 Applies the changes to your Azure subscription.
@@ -160,13 +262,24 @@ terraform apply tfplan
 ```
 Terraform will ask for confirmation before proceeding unless you used `terraform apply -auto-approve tfplan` (not recommended for initial deployments).
 
-This process can take a significant amount of time, especially for the initial AKS cluster provisioning.
+This process can take a significant amount of time, especially for the initial AKS cluster provisioning with customer-managed key encryption.
 
 ## Verifying Deployment
 
 Once `terraform apply` completes:
 - **Check Terraform Outputs**: Note any outputs from the `apply` command (e.g., AKS cluster name, Key Vault URI).
 - **Azure Portal**: Log in to the Azure portal and verify that the resources have been created as expected in the correct resource groups and locations.
+- **Customer-Managed Key Verification**: Verify that all resources are using customer-managed key encryption:
+  ```bash
+  # Check storage account encryption
+  az storage account show --name <storage_account_name> --resource-group <resource_group> --query encryption
+  
+  # Check Key Vault encryption
+  az keyvault show --name <key_vault_name> --resource-group <resource_group> --query properties.enableSoftDelete
+  
+  # Check AKS disk encryption
+  az aks show --resource-group <resource_group> --name <cluster_name> --query agentPoolProfiles[0].enableEncryptionAtHost
+  ```
 - **AKS Cluster**: Get credentials for your new AKS cluster:
   ```bash
   # Get the AKS cluster name and resource group from Terraform outputs or Azure portal
@@ -177,6 +290,7 @@ Once `terraform apply` completes:
   kubectl get nodes
   ```
 - **Other Services**: Check ACR, Key Vault, etc., for their status and configuration.
+- **Sovereign Compliance**: Verify all resources have the required tags for UAE sovereign cloud compliance.
 
 ## Making Changes
 
@@ -208,7 +322,16 @@ To remove all resources managed by Terraform for a specific environment:
 
 - **Authentication Errors**: Ensure `az login` was successful and the correct subscription is selected. Check if your user/service principal has sufficient permissions.
 - **Provider Registration Errors**: If you see errors about resource providers not being registered, you might need to register them manually in your subscription (`az provider register --namespace Microsoft.ContainerService`). The `skip_provider_registration = true` setting in the provider block can help bypass CLI attempts to register if the user lacks permission but the provider is already registered.
+- **Customer-Managed Key Errors**: If you encounter errors related to customer-managed key encryption:
+  - Verify the Key Vault exists and is accessible
+  - Check that the managed identity has the correct permissions on the Key Vault
+  - Ensure the encryption key exists and is accessible
+  - Verify the key URI format is correct
 - **State Lock Errors**: If a previous Terraform command failed or was interrupted, the state might be locked. Terraform usually provides instructions to force-unlock if necessary, but this should be done with caution.
 - **Resource Naming Conflicts**: Ensure resource names, which are often constructed, do not conflict with existing resources if you are not managing them with Terraform or if state is misaligned.
 - **Quota Limits**: You might hit Azure service quotas (e.g., vCPU limits per region). Check your subscription quotas in the Azure portal.
+- **Sovereign Compliance Issues**: If resources fail to deploy due to missing tags or encryption requirements:
+  - Ensure all required tags are included in the `tags` variable
+  - Verify customer-managed key encryption is properly configured
+  - Check that private endpoints are configured where required
 - **Changes Outside Terraform**: If resources are changed manually in the Azure portal, Terraform might not be aware. Run `terraform plan` to see discrepancies. `terraform import` can be used to bring existing resources under Terraform management if needed, but this is an advanced operation. 

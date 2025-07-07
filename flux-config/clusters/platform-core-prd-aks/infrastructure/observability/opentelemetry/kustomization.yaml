@@ -1,0 +1,6 @@
+# OpenTelemetry Collector configuration for prd cluster
+# This file will contain:
+# - OpenTelemetry Operator configuration
+# - Collector deployment with cluster identification
+# - Central endpoint configuration for metrics/traces
+# - Environment-specific labels and context injection

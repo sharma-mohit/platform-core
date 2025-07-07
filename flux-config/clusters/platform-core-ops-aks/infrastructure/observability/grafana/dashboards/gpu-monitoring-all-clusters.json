@@ -1,0 +1,145 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "GPU Monitoring - All Clusters",
+    "tags": ["multi-cluster", "gpu", "ai-ml", "platform-core"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "GPU Utilization Across All Clusters",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "nvidia_gpu_utilization_gpu by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - GPU {{gpu}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "GPU Memory Usage",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes * 100 by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - GPU {{gpu}} - Memory %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Model Inference Comparison",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "avg(model_inference_duration) by cluster, model",
+            "legendFormat": "{{cluster}} - {{model}} - Inference Time"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "GPU Temperature Monitoring",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "nvidia_gpu_temperature_celsius by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - GPU {{gpu}} - Temperature"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "GPU Cost Analysis per Environment",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum by (environment) (nvidia_gpu_utilization_gpu) * 0.01",
+            "legendFormat": "{{environment}} - GPU Cost Factor"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Performance Benchmarking",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(model_inference_requests_total[5m]) by cluster, model",
+            "legendFormat": "{{cluster}} - {{model}} - Requests/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "GPU Power Consumption",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "nvidia_gpu_power_consumption_watts by cluster, environment",
+            "legendFormat": "{{cluster}} ({{environment}}) - GPU {{gpu}} - Power (W)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 8,
+        "title": "GPU Efficiency Score",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "avg by (cluster) (nvidia_gpu_utilization_gpu)",
+            "legendFormat": "{{cluster}} - GPU Efficiency %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "green", "value": 80}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 9,
+        "title": "GPU Workload Distribution",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (cluster) (nvidia_gpu_utilization_gpu)",
+            "legendFormat": "{{cluster}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1
+  }
+}
