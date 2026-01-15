@@ -63,6 +63,9 @@ module "keyvault" {
   
   # Allow current client IP for terraform operations
   allowed_ip_ranges = var.allowed_ip_ranges
+  
+  # Allow AKS subnet access for disk encryption set (needed for customer-managed key encryption)
+  allowed_subnet_ids = [module.network.aks_subnet_id]
 }
 
 # Disk Encryption Module for customer-managed keys (required by Azure policies)

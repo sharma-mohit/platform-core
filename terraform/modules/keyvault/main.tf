@@ -9,15 +9,16 @@ resource "azurerm_key_vault" "kv" {
   sku_name            = "premium"
   tags                = var.tags
 
-  purge_protection_enabled   = true
-  soft_delete_retention_days = 7
-  enable_rbac_authorization  = true
+  purge_protection_enabled    = true
+  soft_delete_retention_days  = 7
+  enable_rbac_authorization   = true
+  enabled_for_disk_encryption = true
 
   network_acls {
-    default_action = "Allow"
-    bypass         = "AzureServices"
-    ip_rules       = var.allowed_ip_ranges
-    virtual_network_subnet_ids = [var.subnet_id]
+    default_action             = "Allow"
+    bypass                     = "AzureServices"
+    ip_rules                   = var.allowed_ip_ranges
+    virtual_network_subnet_ids = concat([var.subnet_id], var.allowed_subnet_ids)
   }
 }
 
@@ -39,7 +40,7 @@ resource "azurerm_private_endpoint" "kv" {
     name                           = "${var.project}-${var.environment}-kv-psc"
     private_connection_resource_id = azurerm_key_vault.kv.id
     is_manual_connection           = false
-    subresource_names             = ["vault"]
+    subresource_names              = ["vault"]
   }
 
   private_dns_zone_group {

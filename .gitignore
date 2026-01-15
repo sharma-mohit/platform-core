@@ -16,6 +16,14 @@ Thumbs.db
 *.tfstate
 *.tfstate.*
 *.backup
+*.tfplan
+*.tfplan.*
+tfplan
+tfplan-final
+tfplan-kv
+tfout
+tfdestroyplan
+terraform-state-backup-*.json
 .terraform/
 crash.log
 

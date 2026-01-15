@@ -22,6 +22,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Help Resources**: Clear guidance on where to get help
 
 ### Fixed
+- **Kubernetes Version Update** (`terraform/modules/aks/variables.tf`, `terraform/shared/common.tfvars`, `terraform/envs/*/terraform.tfvars`): Updated Kubernetes version from 1.30.4 to 1.34.1:
+  - **Updated module default**: Changed default Kubernetes version in AKS module to 1.34.1
+  - **Updated shared configuration**: Updated common.tfvars to use 1.34.1
+  - **Updated environment configs**: Updated both dev and ops environment tfvars files
+  - **Updated documentation**: Updated AKS module README to reflect new version
+  - **Resolves LTS requirement error**: Version 1.30.4 required Long-Term Support (LTS) with Premium tier, 1.34.1 is available without LTS requirement
+- **Disk Encryption Set Key Vault Access** (`terraform/modules/disk-encryption/main.tf`, `terraform/modules/disk-encryption/outputs.tf`): Fixed Key Vault access for disk encryption set to use RBAC instead of access policies:
+  - **Replaced access policy with RBAC role assignment**: Changed from `azurerm_key_vault_access_policy` to `azurerm_role_assignment` with "Key Vault Crypto Service Encryption User" role
+  - **RBAC compatibility**: Key Vault uses RBAC authorization (`enable_rbac_authorization = true`), so access policies don't work
+  - **Updated outputs**: Changed output to reference role assignment ID instead of access policy ID
+  - **Resolves KeyVaultAccessForbidden error**: Fixes disk encryption errors when creating AKS cluster with customer-managed keys
+  - **Maintains dependency tracking**: Output still provides ID for dependency management in AKS module
+- **Key Vault Network ACLs for Disk Encryption** (`terraform/modules/keyvault/main.tf`, `terraform/modules/keyvault/variables.tf`, `terraform/envs/dev-uaenorth/main.tf`): Fixed Key Vault network access for disk encryption set:
+  - **Added AKS subnet to network ACLs**: Added `allowed_subnet_ids` variable to Key Vault module to allow additional subnets (e.g., AKS subnet) to access Key Vault
+  - **Enabled disk encryption**: Added `enabled_for_disk_encryption = true` to Key Vault configuration (required for disk encryption sets)
+  - **Network access for VMSS**: AKS node pools (VMSS) need network access to Key Vault for disk encryption operations
+  - **Resolves VMSS creation failure**: Fixes "Unable to access key vault resource" error when creating AKS node pools with customer-managed key encryption
+  - **Maintains security**: Network ACLs still restrict access to specified subnets while allowing disk encryption operations
+- **Dev Environment Terraform Remote State Configuration** (`terraform/envs/dev-uaenorth/main.tf`): Fixed remote state data source configuration for ops environment:
+  - **Corrected container name**: Changed from `"tfstate"` to `"tfstate-ops-uaenorth"` to match ops backend configuration
+  - **Corrected state key**: Changed from `"ops-uaenorth.terraform.tfstate"` to `"platform-core-ops.tfstate"` to match ops backend configuration
+  - **Commented out unused data source**: Since the observability-agent module is commented out, the remote state data source is also commented out with clear instructions for when to uncomment it
+  - **Resolves ContainerNotFound error**: Fixes the 404 error when planning dev cluster before ops environment is initialized
+  - **Enables independent deployment**: Dev cluster can now be planned/deployed without requiring ops environment to be initialized first
 - **Terraform Backend Resource Group Standardization**: Aligned all environments to use shared resource group approach as intended in architecture:
   - **Updated `scripts/setup-terraform-backend.sh`**: Modified to create shared resource group `rg-tfstate-platformcore-shared-uaen-001` instead of individual resource groups
   - **Updated backend configurations**: Both `dev-uaenorth` and `ops-uaenorth` environments now use the shared resource group

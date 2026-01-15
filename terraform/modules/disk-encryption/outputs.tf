@@ -4,6 +4,6 @@ output "disk_encryption_set_id" {
 }
 
 output "disk_encryption_set_access_policy_id" {
-  description = "The ID of the Key Vault access policy for the disk encryption set."
-  value       = azurerm_key_vault_access_policy.disk_encryption_set.id
+  description = "The ID of the Key Vault role assignment for the disk encryption set (used for dependency tracking)."
+  value       = azurerm_role_assignment.disk_encryption_set.id
 } 

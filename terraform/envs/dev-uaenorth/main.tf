@@ -15,7 +15,7 @@ module "shared" {
 locals {
   environment = "dev"
   location    = "uaenorth"
-  
+
   # Common tags for all resources
   common_tags = merge(
     var.tags,
@@ -61,17 +61,20 @@ module "keyvault" {
   tags                = local.common_tags
   tenant_id           = var.tenant_id
   resource_group_name = azurerm_resource_group.aks.name
-  
+
   # Network configuration
-  vnet_id         = module.network.vnet_id
-  subnet_id       = module.network.keyvault_subnet_id
-  
+  vnet_id   = module.network.vnet_id
+  subnet_id = module.network.keyvault_subnet_id
+
   # Access configuration
-  aks_identity_id            = "00000000-0000-0000-0000-000000000000"  # Placeholder, will be set via role assignment
+  aks_identity_id            = "00000000-0000-0000-0000-000000000000" # Placeholder, will be set via role assignment
   log_analytics_workspace_id = azurerm_log_analytics_workspace.aks.id
-  
+
   # Allow current client IP for terraform operations
   allowed_ip_ranges = var.allowed_ip_ranges
+
+  # Allow AKS subnet access for disk encryption set (needed for customer-managed key encryption)
+  allowed_subnet_ids = [module.network.aks_subnet_id]
 }
 
 # Disk Encryption Module for customer-managed keys (required by Azure policies)
@@ -92,20 +95,20 @@ module "disk_encryption" {
 module "aks" {
   source = "../../modules/aks"
 
-  environment                   = local.environment
-  location                      = local.location
-  project                       = var.project
-  tags                          = local.common_tags
-  resource_group_name           = azurerm_resource_group.aks.name
-  log_analytics_workspace_id    = azurerm_log_analytics_workspace.aks.id
-  
+  environment                = local.environment
+  location                   = local.location
+  project                    = var.project
+  tags                       = local.common_tags
+  resource_group_name        = azurerm_resource_group.aks.name
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.aks.id
+
   # Network configuration
-  subnet_id   = module.network.aks_subnet_id # AKS nodes will reside in this subnet
-  
+  subnet_id = module.network.aks_subnet_id # AKS nodes will reside in this subnet
+
   # Disk encryption configuration (required by Azure policies)
-  disk_encryption_set_id = module.disk_encryption.disk_encryption_set_id
+  disk_encryption_set_id               = module.disk_encryption.disk_encryption_set_id
   disk_encryption_set_access_policy_id = module.disk_encryption.disk_encryption_set_access_policy_id
-  
+
   # Node pool configuration
   system_node_pool = {
     name            = "system"
@@ -115,17 +118,17 @@ module "aks" {
     min_count       = 1
     max_count       = 3
   }
-  
+
   user_node_pool = {
-    name                  = "user"
-    node_count            = 1
-    vm_size               = "Standard_D4s_v3"
-    os_disk_size_gb       = 100
-    min_count             = 1
-    max_count             = 5
-    enable_auto_scaling   = false
-    gpu_enabled           = false
-    node_labels           = {}
+    name                = "user"
+    node_count          = 1
+    vm_size             = "Standard_D4s_v3"
+    os_disk_size_gb     = 100
+    min_count           = 1
+    max_count           = 5
+    enable_auto_scaling = false
+    gpu_enabled         = false
+    node_labels         = {}
   }
 
   depends_on = [module.disk_encryption]
@@ -139,10 +142,10 @@ module "acr" {
   location    = local.location
   project     = var.project
   tags        = local.common_tags
-  
+
   # Network configuration
-  vnet_id         = module.network.vnet_id
-  subnet_id       = module.network.acr_subnet_id
+  vnet_id   = module.network.vnet_id
+  subnet_id = module.network.acr_subnet_id
 }
 
 # Role assignments (created after modules to avoid circular dependencies)
@@ -162,16 +165,19 @@ resource "azurerm_role_assignment" "aks_kv_secrets" {
 }
 
 # Get outputs from ops environment for observability
-data "terraform_remote_state" "ops" {
-  backend = "azurerm"
-  
-  config = {
-    storage_account_name = var.terraform_state_storage_account_name
-    container_name       = "tfstate"
-    key                  = "ops-uaenorth.terraform.tfstate"
-    resource_group_name  = var.terraform_state_resource_group_name
-  }
-}
+# NOTE: Uncomment this data source when the ops environment has been initialized
+# and you're ready to enable the observability-agent module.
+# The ops environment must be deployed first for this to work.
+# data "terraform_remote_state" "ops" {
+#   backend = "azurerm"
+#   
+#   config = {
+#     storage_account_name = var.terraform_state_storage_account_name
+#     container_name       = "tfstate-ops-uaenorth"
+#     key                  = "platform-core-ops.tfstate"
+#     resource_group_name  = var.terraform_state_resource_group_name
+#   }
+# }
 
 output "aks_cluster_name" {
   description = "The name of the AKS cluster."

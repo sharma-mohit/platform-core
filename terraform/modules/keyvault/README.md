@@ -6,7 +6,8 @@ This module deploys an Azure Key Vault with private endpoint, access policies, a
 
 - Premium SKU Azure Key Vault
 - Private endpoint for secure access
-- Access policies for AKS integration
+- RBAC authorization enabled
+- Disk encryption enabled for customer-managed keys
 - Network rules for access control
 - Diagnostic settings with Log Analytics
 - Soft delete and purge protection
@@ -43,13 +44,16 @@ module "keyvault" {
 - Service endpoint for Key Vault
 - Private DNS Zone for private endpoint
 - Optional IP range allowlist
+- Additional subnet allowlist (e.g., AKS subnet for disk encryption operations)
+- Disk encryption enabled for customer-managed key support
 
-## Access Policies
+## Access Control
 
-The module configures access policies for:
-- AKS cluster identity (Get, List permissions)
-- Secrets and certificates access
-- RBAC integration
+The module uses RBAC for access control:
+- Key Vault Administrator role for current user
+- AKS cluster identity can be granted roles via separate role assignments
+- Disk encryption sets use "Key Vault Crypto Service Encryption User" role
+- All access is managed through Azure RBAC (not access policies)
 
 ## Inputs
 
@@ -65,6 +69,7 @@ The module configures access policies for:
 | aks_identity_id | The ID of the AKS cluster's managed identity | `string` | n/a | yes |
 | log_analytics_workspace_id | The ID of the Log Analytics Workspace | `string` | n/a | yes |
 | allowed_ip_ranges | List of IP ranges allowed to access the Key Vault | `list(string)` | `[]` | no |
+| allowed_subnet_ids | List of additional subnet IDs allowed to access the Key Vault (e.g., AKS subnet for disk encryption) | `list(string)` | `[]` | no |
 
 ## Outputs
 
@@ -83,7 +88,8 @@ The module configures access policies for:
 - Network rules to deny public access
 - Soft delete enabled (7 days retention)
 - Purge protection enabled
-- Access policies for AKS integration
+- RBAC authorization (no access policies)
+- Disk encryption enabled for customer-managed keys
 - Diagnostic logging to Log Analytics
 - Premium SKU for advanced features
 

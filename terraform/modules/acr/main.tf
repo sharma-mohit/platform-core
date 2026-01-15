@@ -28,7 +28,7 @@ resource "azurerm_private_endpoint" "acr" {
     name                           = "${var.project}-${var.environment}-acr-psc"
     private_connection_resource_id = azurerm_container_registry.acr.id
     is_manual_connection           = false
-    subresource_names             = ["registry"]
+    subresource_names              = ["registry"]
   }
 
   private_dns_zone_group {

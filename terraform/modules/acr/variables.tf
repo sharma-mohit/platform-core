@@ -31,7 +31,7 @@ variable "subnet_id" {
 variable "resource_group_name_pattern" {
   description = "The pattern for the resource group name. Will be formatted with environment and location"
   type        = string
-  default     = "rg-acr-%s-%s-001"  # Will be formatted with environment and location
+  default     = "rg-acr-%s-%s-001" # Will be formatted with environment and location
 }
 
 variable "aks_identity_id" {

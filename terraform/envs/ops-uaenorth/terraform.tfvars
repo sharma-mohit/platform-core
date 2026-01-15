@@ -33,7 +33,7 @@ terraform_state_resource_group_name = "rg-tfstate-platformcore-shared-uaen-001"
 
 # Override AKS configuration if needed
 aks = {
-  kubernetes_version = "1.30.4"
+  kubernetes_version = "1.34.1"
   system_node_pool = {
     name            = "system"
     node_count      = 1

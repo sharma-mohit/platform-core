@@ -196,6 +196,13 @@ terraform workspace select dev
 terraform plan -out=tfplan
 terraform apply tfplan
 
+# Note: If you encounter issues during deployment, see troubleshooting section below
+# Common fixes applied:
+# - Kubernetes version updated to 1.34.1 (avoids LTS requirement)
+# - Key Vault RBAC configured for disk encryption set
+# - AKS subnet added to Key Vault network ACLs
+# - Key Vault disk encryption enabled
+
 # 5. Deploy operations cluster
 cd ../ops-uaenorth
 terraform init -backend-config=backend.hcl

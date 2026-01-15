@@ -49,6 +49,12 @@ variable "allowed_ip_ranges" {
   default     = []
 }
 
+variable "allowed_subnet_ids" {
+  description = "List of additional subnet IDs allowed to access the Key Vault (e.g., AKS subnet for disk encryption)"
+  type        = list(string)
+  default     = []
+}
+
 variable "resource_group_name" {
   description = "The name of the resource group where the Key Vault will be created"
   type        = string

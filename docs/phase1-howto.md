@@ -294,6 +294,9 @@ Note: The workspace name should match your environment (dev, stg, or prd). If yo
    - Check that the managed identity has the correct permissions on the Key Vault
    - Ensure the encryption key exists and is accessible
    - Verify the key URI format is correct
+   - **Key Vault RBAC**: If Key Vault uses RBAC (`enable_rbac_authorization = true`), ensure disk encryption set has "Key Vault Crypto Service Encryption User" role assignment (not access policy)
+   - **Network ACLs**: Ensure AKS subnet is included in Key Vault network ACLs (`allowed_subnet_ids`) for disk encryption operations
+   - **Disk Encryption Enabled**: Verify Key Vault has `enabled_for_disk_encryption = true` set
 
 5. **Sovereign Compliance Issues**:
    - Ensure all required tags are included in the `tags` variable

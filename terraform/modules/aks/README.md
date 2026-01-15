@@ -74,7 +74,7 @@ module "aks" {
 | location | The Azure region where resources will be created | `string` | n/a | yes |
 | project | The project name | `string` | n/a | yes |
 | tags | Common tags for all resources | `map(string)` | n/a | yes |
-| kubernetes_version | Kubernetes version | `string` | "1.30.4" | no |
+| kubernetes_version | Kubernetes version | `string` | "1.34.1" | no |
 | subnet_id | The subnet ID for the AKS cluster | `string` | n/a | yes |
 | keyvault_id | The ID of the Key Vault for secrets integration | `string` | n/a | yes |
 | system_node_pool | System node pool configuration | `object` | n/a | yes |

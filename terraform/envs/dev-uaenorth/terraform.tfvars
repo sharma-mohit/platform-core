@@ -1,7 +1,7 @@
 # Environment specific variables
-project         = "platform-core"
-environment     = "dev"
-location        = "uaenorth"
+project     = "platform-core"
+environment = "dev"
+location    = "uaenorth"
 
 # Azure specific values
 subscription_id = "b139cf36-b4d2-4653-bab0-6d98354a68ef"
@@ -9,7 +9,7 @@ tenant_id       = "909b0a4b-54de-4250-b223-b55c49dabac7"
 
 # Terraform state configuration
 terraform_state_storage_account_name = "platformcoretfstate"
-terraform_state_resource_group_name = "rg-tfstate-platformcore-shared-uaen-001"
+terraform_state_resource_group_name  = "rg-tfstate-platformcore-shared-uaen-001"
 
 # Override any common variables if needed
 # network = {
@@ -32,7 +32,7 @@ terraform_state_resource_group_name = "rg-tfstate-platformcore-shared-uaen-001"
 
 # Override AKS configuration if needed
 # aks = {
-#   kubernetes_version = "1.30.4"
+#   kubernetes_version = "1.34.1"
 #   system_node_pool = {
 #     name            = "system"
 #     node_count      = 2
@@ -53,13 +53,13 @@ terraform_state_resource_group_name = "rg-tfstate-platformcore-shared-uaen-001"
 # }
 
 tags = {
-  Project     = "platform-core"
-  ManagedBy   = "terraform"
-  Environment = "dev"
-  Owner       = "platform-team"
-  CostCenter  = "ai-platform"
+  Project      = "platform-core"
+  ManagedBy    = "terraform"
+  Environment  = "dev"
+  Owner        = "platform-team"
+  CostCenter   = "ai-platform"
   createdBy    = "mohit.sharma"
   projectName  = "platform-core"
   workLoadName = "dev"
-  Sovereignty = "Confidential"
+  Sovereignty  = "Confidential"
 } 

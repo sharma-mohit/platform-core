@@ -37,7 +37,7 @@ network = {
 
 # AKS Configuration
 aks = {
-  kubernetes_version = "1.30.4"
+  kubernetes_version = "1.34.1"
   system_node_pool = {
     name            = "system"
     node_count      = 2

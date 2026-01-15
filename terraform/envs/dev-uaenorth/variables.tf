@@ -66,15 +66,15 @@ variable "aks" {
       max_count       = number
     })
     user_node_pool = optional(object({
-      name                  = string
-      node_count            = number
-      vm_size               = string
-      os_disk_size_gb       = number
-      enable_auto_scaling   = bool
-      min_count             = number
-      max_count             = number
-      gpu_enabled           = bool
-      node_labels           = map(string)
+      name                = string
+      node_count          = number
+      vm_size             = string
+      os_disk_size_gb     = number
+      enable_auto_scaling = bool
+      min_count           = number
+      max_count           = number
+      gpu_enabled         = bool
+      node_labels         = map(string)
     }))
   })
   default = null
@@ -86,8 +86,8 @@ variable "acr" {
   type = object({
     sku = string
     geo_replications = list(object({
-      location                  = string
-      zone_redundancy_enabled   = bool
+      location                = string
+      zone_redundancy_enabled = bool
     }))
   })
   default = null
@@ -109,7 +109,7 @@ variable "log_analytics" {
   description = "Log Analytics configuration"
   type = object({
     retention_in_days = number
-    sku              = string
+    sku               = string
   })
   default = null
 }
@@ -120,8 +120,8 @@ variable "security" {
   type = object({
     enable_private_cluster = bool
     enable_network_policy  = bool
-    enable_rbac           = bool
-    enable_defender       = bool
+    enable_rbac            = bool
+    enable_defender        = bool
   })
   default = null
 }
